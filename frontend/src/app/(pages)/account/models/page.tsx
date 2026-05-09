@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AlertCircle, Check, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,7 +93,7 @@ export default function ModelsAndApiKeysPage() {
                 <div className="space-y-4 max-w-xl">
                     {API_KEY_FIELDS.map((field) => (
                         <ApiKeyField
-                            key={field.provider}
+                            key={`${field.provider}:${profile?.apiKeys[field.provider].configured}:${profile?.apiKeys[field.provider].source}`}
                             label={field.label}
                             placeholder={field.placeholder}
                             hasSavedKey={
@@ -131,11 +131,16 @@ function TabularModelDropdown({
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const selected = MODELS.find((m) => m.id === value);
+    const selectedLabel =
+        selected?.id === "local:server"
+            ? (apiKeys?.local.label ?? selected.label)
+            : (selected?.label ?? "Select a model");
     const selectedAvailable = apiKeys ? isModelAvailable(value, apiKeys) : true;
-    const groups: ("Anthropic" | "Google" | "OpenAI")[] = [
+    const groups: ("Anthropic" | "Google" | "OpenAI" | "Local")[] = [
         "Anthropic",
         "Google",
         "OpenAI",
+        "Local",
     ];
 
     return (
@@ -150,7 +155,7 @@ function TabularModelDropdown({
                             <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
                         )}
                         <span className="truncate text-gray-900">
-                            {selected?.label ?? "Select a model"}
+                            {selectedLabel}
                         </span>
                     </span>
                     <ChevronDown
@@ -164,7 +169,16 @@ function TabularModelDropdown({
                 align="start"
             >
                 {groups.map((group, gi) => {
-                    const items = MODELS.filter((m) => m.group === group);
+                    const items = MODELS.filter((m) => {
+                        if (m.group !== group) return false;
+                        if (m.id === "local:server") {
+                            return (
+                                !!apiKeys?.local.configured &&
+                                !!apiKeys.local.supportsTools
+                            );
+                        }
+                        return true;
+                    });
                     if (items.length === 0) return null;
                     return (
                         <div key={group}>
@@ -191,7 +205,9 @@ function TabularModelDropdown({
                                         <span
                                             className={`flex-1 ${available ? "" : "text-gray-400"}`}
                                         >
-                                            {m.label}
+                                            {m.id === "local:server"
+                                                ? (apiKeys?.local.label ?? m.label)
+                                                : m.label}
                                         </span>
                                         {!available && (
                                             <AlertCircle className="h-3.5 w-3.5 text-red-500 ml-1" />
@@ -229,10 +245,6 @@ function ApiKeyField({
     const [reveal, setReveal] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
-
-    useEffect(() => {
-        setValue("");
-    }, [hasSavedKey]);
 
     const dirty = value.trim().length > 0;
 

@@ -1,4 +1,7 @@
 import type { Provider } from "./types";
+import { LOCAL_MODEL_ID, isLocalLlmEnabled } from "./localConfig";
+
+export { LOCAL_MODEL_ID };
 
 // ---------------------------------------------------------------------------
 // Canonical model IDs
@@ -46,10 +49,17 @@ export function providerForModel(model: string): Provider {
     if (model.startsWith("claude")) return "claude";
     if (model.startsWith("gemini")) return "gemini";
     if (model.startsWith("gpt-")) return "openai";
+    if (model === LOCAL_MODEL_ID) return "local";
     throw new Error(`Unknown model id: ${model}`);
 }
 
-export function resolveModel(id: string | null | undefined, fallback: string): string {
+export function resolveModel(
+    id: string | null | undefined,
+    fallback: string,
+    options: { localEnabled?: boolean } = {},
+): string {
+    const localEnabled = options.localEnabled ?? isLocalLlmEnabled();
+    if (id === LOCAL_MODEL_ID) return localEnabled ? id : fallback;
     if (id && ALL_MODELS.has(id)) return id;
     return fallback;
 }

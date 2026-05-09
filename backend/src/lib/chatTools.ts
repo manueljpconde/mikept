@@ -20,10 +20,12 @@ import {
 import {
     streamChatWithTools,
     resolveModel,
+    providerForModel,
     DEFAULT_MAIN_MODEL,
     type LlmMessage,
     type OpenAIToolSchema,
 } from "./llm";
+import { LOCAL_MODEL_ID, getLocalLlmConfig } from "./llm/localConfig";
 
 const STANDARD_FONT_DATA_URL = (() => {
     try {
@@ -2745,10 +2747,6 @@ export async function runLLMStream(params: {
         apiKeys,
         projectId,
     } = params;
-    const activeTools = extraTools?.length
-        ? [...TOOLS, ...WORKFLOW_TOOLS, ...extraTools]
-        : [...TOOLS, ...WORKFLOW_TOOLS];
-
     // Extract system prompt; pass remaining turns to the adapter as
     // plain user/assistant messages.
     const rawMsgs = apiMessages as { role: string; content: string | null }[];
@@ -2830,11 +2828,32 @@ export async function runLLMStream(params: {
         citationsOpenSeen = false;
     };
 
-    const selectedModel = resolveModel(model, DEFAULT_MAIN_MODEL);
+    if (model === LOCAL_MODEL_ID) {
+        const requestedLocalConfig = getLocalLlmConfig();
+        if (!requestedLocalConfig.enabled) {
+            throw new Error("Local LLM is not configured");
+        }
+    }
+    const selectedModel = resolveModel(model, DEFAULT_MAIN_MODEL, {
+        localEnabled: model === LOCAL_MODEL_ID,
+    });
+    const selectedProvider = providerForModel(selectedModel);
+    const localConfig =
+        selectedProvider === "local" ? getLocalLlmConfig() : null;
+    const localWithoutTools =
+        selectedProvider === "local" && !localConfig?.supportsTools;
+    const activeTools = localWithoutTools
+        ? []
+        : extraTools?.length
+          ? [...TOOLS, ...WORKFLOW_TOOLS, ...extraTools]
+          : [...TOOLS, ...WORKFLOW_TOOLS];
+    const effectiveSystemPrompt = localWithoutTools
+        ? `${systemPrompt}\n\nLOCAL MODEL LIMITATION: The selected self-hosted local model is configured without tool support. You cannot call document, workflow, DOCX generation, or editing tools in this turn. Do not claim to have read files or used tools unless their content is already present in the prompt. If the user asks for a tool-dependent action, explain that the configured local model does not support that capability.`
+        : systemPrompt;
 
     await streamChatWithTools({
         model: selectedModel,
-        systemPrompt,
+        systemPrompt: effectiveSystemPrompt,
         messages: chatMessages,
         tools: activeTools as OpenAIToolSchema[],
         maxIterations: 10,

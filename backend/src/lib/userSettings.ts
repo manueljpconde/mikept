@@ -6,6 +6,7 @@ import {
     OPENAI_LOW_MODELS,
     type UserApiKeys,
 } from "./llm";
+import { LOCAL_MODEL_ID, getLocalLlmConfig } from "./llm/localConfig";
 import { getUserApiKeys as getStoredUserApiKeys } from "./userApiKeys";
 
 export type UserModelSettings = {
@@ -36,10 +37,24 @@ export async function getUserModelSettings(
         .eq("user_id", userId)
         .single();
     const api_keys = await getStoredUserApiKeys(userId, client);
+    const localConfig = (() => {
+        if (data?.tabular_model !== LOCAL_MODEL_ID) return null;
+        try {
+            return getLocalLlmConfig();
+        } catch {
+            return null;
+        }
+    })();
+    const tabular_model =
+        data?.tabular_model === LOCAL_MODEL_ID && !localConfig?.supportsTools
+            ? DEFAULT_TABULAR_MODEL
+            : resolveModel(data?.tabular_model, DEFAULT_TABULAR_MODEL, {
+                  localEnabled: !!localConfig?.enabled,
+              });
 
     return {
         title_model: resolveTitleModel(api_keys),
-        tabular_model: resolveModel(data?.tabular_model, DEFAULT_TABULAR_MODEL),
+        tabular_model,
         api_keys,
     };
 }

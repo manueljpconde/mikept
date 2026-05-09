@@ -2,6 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth";
 import { createServerSupabase } from "../lib/supabase";
 import { DEFAULT_TABULAR_MODEL, resolveModel } from "../lib/llm";
+import { LOCAL_MODEL_ID, getLocalLlmConfig } from "../lib/llm/localConfig";
 import {
   type ApiKeyStatus,
   getUserApiKeyStatus,
@@ -28,6 +29,20 @@ function serializeProfile(
   apiKeyStatus?: ApiKeyStatus,
 ) {
   const creditsUsed = row.message_credits_used ?? 0;
+  const localConfig = (() => {
+    if (row.tabular_model !== LOCAL_MODEL_ID) return null;
+    try {
+      return getLocalLlmConfig();
+    } catch {
+      return null;
+    }
+  })();
+  const tabularModel =
+    row.tabular_model === LOCAL_MODEL_ID && !localConfig?.supportsTools
+      ? DEFAULT_TABULAR_MODEL
+      : resolveModel(row.tabular_model, DEFAULT_TABULAR_MODEL, {
+          localEnabled: !!localConfig?.enabled,
+        });
   return {
     displayName: row.display_name,
     organisation: row.organisation,
@@ -35,7 +50,7 @@ function serializeProfile(
     creditsResetDate: row.credits_reset_date,
     creditsRemaining: Math.max(MONTHLY_CREDIT_LIMIT - creditsUsed, 0),
     tier: row.tier || "Free",
-    tabularModel: resolveModel(row.tabular_model, DEFAULT_TABULAR_MODEL),
+    tabularModel,
     ...(apiKeyStatus ? { apiKeyStatus } : {}),
   };
 }
@@ -91,7 +106,21 @@ function validateProfilePayload(body: unknown):
     if (typeof raw.tabularModel !== "string") {
       return { ok: false, detail: "tabularModel must be a string" };
     }
-    const resolved = resolveModel(raw.tabularModel, "");
+    const isLocalTabularModel = raw.tabularModel === LOCAL_MODEL_ID;
+    let localEnabled = false;
+    if (isLocalTabularModel) {
+      const localConfig = getLocalLlmConfig();
+      localEnabled = localConfig.enabled;
+      if (!localConfig.supportsTools) {
+        return {
+          ok: false,
+          detail: "Local model is not supported for tabular reviews",
+        };
+      }
+    }
+    const resolved = resolveModel(raw.tabularModel, "", {
+      localEnabled,
+    });
     if (!resolved) {
       return { ok: false, detail: "Unsupported tabularModel" };
     }

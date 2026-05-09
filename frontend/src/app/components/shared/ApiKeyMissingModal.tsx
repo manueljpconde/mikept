@@ -20,7 +20,9 @@ export function ApiKeyMissingModal({ open, onClose, provider, message }: Props) 
     const providerName = provider ? providerLabel(provider) : "this provider";
     const body =
         message ??
-        `You haven't added a ${providerName} API key yet. Add one in your account settings to use this model.`;
+        (provider === "local"
+            ? "The local model is not configured by the server. Ask the self-hosting admin to enable the local LLM environment settings."
+            : `You haven't added a ${providerName} API key yet. Add one in your account settings to use this model.`);
 
     const handleGoToAccount = () => {
         onClose();
@@ -40,7 +42,9 @@ export function ApiKeyMissingModal({ open, onClose, provider, message }: Props) 
                     <div className="flex items-center gap-2">
                         <AlertTriangle className="h-4 w-4 text-amber-600" />
                         <h2 className="text-base font-medium text-gray-900">
-                            API key required
+                            {provider === "local"
+                                ? "Local model unavailable"
+                                : "API key required"}
                         </h2>
                     </div>
                     <button

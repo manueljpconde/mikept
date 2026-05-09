@@ -16,3 +16,7 @@ next-env.d.ts
 .DS_Store
 .vercel
 coverage
+
+# Claude Code setup — local only, not shared with the public repo
+.claude/
+CLAUDE.md

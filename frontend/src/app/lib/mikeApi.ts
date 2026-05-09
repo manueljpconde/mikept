@@ -126,16 +126,28 @@ export async function updateUserProfile(payload: {
 
 export type ApiKeyProvider = "claude" | "gemini" | "openai";
 export type ApiKeySource = "user" | "env" | null;
+export type LocalProviderState = {
+    configured: boolean;
+    source: "env" | null;
+    modelId: "local:server";
+    label: string;
+    supportsTools: boolean;
+    supportsStreaming: true;
+    supportsReasoning: false;
+};
 export type ApiKeyState = Record<
     ApiKeyProvider,
     {
         configured: boolean;
         source: ApiKeySource;
     }
->;
+> & {
+    local: LocalProviderState;
+};
 
 export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
     sources?: Partial<Record<ApiKeyProvider, ApiKeySource>>;
+    local?: LocalProviderState;
 };
 
 export async function getApiKeyStatus(): Promise<ApiKeyStatus> {

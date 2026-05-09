@@ -51,12 +51,22 @@ const UserProfileContext = createContext<UserProfileContextType | undefined>(
 );
 
 const API_KEY_PROVIDERS: ApiKeyProvider[] = ["claude", "gemini", "openai"];
+const DEFAULT_LOCAL_PROVIDER = {
+    configured: false,
+    source: null,
+    modelId: "local:server",
+    label: "Local model",
+    supportsTools: false,
+    supportsStreaming: true,
+    supportsReasoning: false,
+} as const;
 
 function emptyApiKeys(): ApiKeyState {
     return {
         claude: { configured: false, source: null },
         gemini: { configured: false, source: null },
         openai: { configured: false, source: null },
+        local: DEFAULT_LOCAL_PROVIDER,
     };
 }
 
@@ -71,6 +81,7 @@ function toProfile(data: ApiUserProfile): UserProfile {
                 (apiKeyStatus[provider] ? "user" : null),
         };
     }
+    apiKeys.local = apiKeyStatus.local ?? DEFAULT_LOCAL_PROVIDER;
 
     return {
         ...profile,

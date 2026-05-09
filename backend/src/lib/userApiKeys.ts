@@ -1,12 +1,17 @@
 import crypto from "crypto";
 import { createServerSupabase } from "./supabase";
 import type { UserApiKeys } from "./llm";
+import {
+    getLocalProviderStatus,
+    type LocalProviderStatus,
+} from "./llm/localConfig";
 
 type Db = ReturnType<typeof createServerSupabase>;
 export type ApiKeyProvider = "claude" | "gemini" | "openai";
 export type ApiKeySource = "user" | "env" | null;
 export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
     sources: Record<ApiKeyProvider, ApiKeySource>;
+    local: LocalProviderStatus;
 };
 
 type EncryptedKeyRow = {
@@ -104,6 +109,7 @@ export async function getUserApiKeyStatus(
             gemini: null,
             openai: null,
         },
+        local: getLocalProviderStatus(),
     };
 
     for (const provider of PROVIDERS) {

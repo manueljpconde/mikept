@@ -16,7 +16,7 @@ import type { ApiKeyState } from "@/app/lib/mikeApi";
 export interface ModelOption {
     id: string;
     label: string;
-    group: "Anthropic" | "Google" | "OpenAI";
+    group: "Anthropic" | "Google" | "OpenAI" | "Local";
 }
 
 export const MODELS: ModelOption[] = [
@@ -26,13 +26,19 @@ export const MODELS: ModelOption[] = [
     { id: "gemini-3-flash-preview", label: "Gemini 3 Flash", group: "Google" },
     { id: "gpt-5.5", label: "GPT-5.5", group: "OpenAI" },
     { id: "gpt-5.4-mini", label: "GPT-5.4 Mini", group: "OpenAI" },
+    { id: "local:server", label: "Local model", group: "Local" },
 ];
 
 export const DEFAULT_MODEL_ID = "gemini-3-flash-preview";
 
 export const ALLOWED_MODEL_IDS = new Set(MODELS.map((m) => m.id));
 
-const GROUP_ORDER: ModelOption["group"][] = ["Anthropic", "Google", "OpenAI"];
+const GROUP_ORDER: ModelOption["group"][] = [
+    "Anthropic",
+    "Google",
+    "OpenAI",
+    "Local",
+];
 
 interface Props {
     value: string;
@@ -43,7 +49,10 @@ interface Props {
 export function ModelToggle({ value, onChange, apiKeys }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const selected = MODELS.find((m) => m.id === value);
-    const selectedLabel = selected?.label ?? "Model";
+    const selectedLabel =
+        selected?.id === "local:server"
+            ? (apiKeys?.local.label ?? selected.label)
+            : (selected?.label ?? "Model");
     const selectedAvailable = apiKeys
         ? isModelAvailable(value, apiKeys)
         : true;
@@ -71,7 +80,13 @@ export function ModelToggle({ value, onChange, apiKeys }: Props) {
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56 z-50" side="top" align="start">
                 {GROUP_ORDER.map((group, gi) => {
-                    const items = MODELS.filter((m) => m.group === group);
+                    const items = MODELS.filter((m) => {
+                        if (m.group !== group) return false;
+                        if (m.id === "local:server") {
+                            return !!apiKeys?.local.configured;
+                        }
+                        return true;
+                    });
                     if (items.length === 0) return null;
                     return (
                         <div key={group}>
@@ -92,7 +107,9 @@ export function ModelToggle({ value, onChange, apiKeys }: Props) {
                                         <span
                                             className={`flex-1 ${available ? "" : "text-gray-400"}`}
                                         >
-                                            {m.label}
+                                            {m.id === "local:server"
+                                                ? (apiKeys?.local.label ?? m.label)
+                                                : m.label}
                                         </span>
                                         {!available && (
                                             <AlertCircle

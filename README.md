@@ -47,9 +47,42 @@ Open `http://localhost:3000`.
 - At least one supported model provider key, depending on which models you enable
 - LibreOffice for DOC/DOCX to PDF conversion
 
+## Self-Hosted Local LLMs
+
+Self-hosted deployments can expose a server-configured local model through an
+OpenAI-compatible `/v1/chat/completions` endpoint. The backend calls this
+endpoint directly; the browser only sees a selectable `local:server` model.
+
+Ollama example:
+
+```env
+ENABLE_LOCAL_LLM=true
+LOCAL_LLM_BASE_URL=http://localhost:11434/v1
+LOCAL_LLM_MODEL=llama3.1:8b
+LOCAL_LLM_LABEL=Local Llama 3.1
+LOCAL_LLM_SUPPORTS_TOOLS=false
+```
+
+LM Studio example:
+
+```env
+ENABLE_LOCAL_LLM=true
+LOCAL_LLM_BASE_URL=http://localhost:1234/v1
+LOCAL_LLM_MODEL=<model-id-from-lm-studio>
+LOCAL_LLM_LABEL=LM Studio Local Model
+LOCAL_LLM_SUPPORTS_TOOLS=false
+```
+
+Local mode is configured by backend environment variables, not normal user
+account settings. Mike does not automatically fall back to cloud models when
+`local:server` is selected. Tool-dependent workflows such as document editing,
+DOCX generation, workflows, and tabular review extraction stay gated unless
+local tool support is explicitly enabled and tested for the selected runtime.
+
 ## Checks
 
 ```bash
+npm test --prefix backend
 npm run build --prefix backend
 npm run build --prefix frontend
 npm run lint --prefix frontend

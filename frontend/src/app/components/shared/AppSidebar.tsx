@@ -19,8 +19,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { MikeIcon } from "@/components/chat/mike-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
-import { LanguageSwitcher } from "@/app/components/i18n/LanguageSwitcher";
-import { listProjects, updateUserProfile } from "@/app/lib/mikeApi";
+import { listProjects } from "@/app/lib/mikeApi";
 
 const NAV_ITEMS = [
     { href: "/assistant", labelKey: "nav.assistant", icon: MessageSquare },
@@ -305,18 +304,6 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                     <User className="h-4 w-4" />
                                     {t("nav.accountSettings")}
                                 </button>
-                                <div className="px-4 py-2 flex items-center justify-between gap-2">
-                                    <span className="text-sm text-gray-700">
-                                        {t("common.language")}
-                                    </span>
-                                    <LanguageSwitcher
-                                        onLocaleChange={async (next) => {
-                                            await updateUserProfile({
-                                                locale: next,
-                                            });
-                                        }}
-                                    />
-                                </div>
                             </div>
                         )}
                     </div>

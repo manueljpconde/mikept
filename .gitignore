@@ -20,5 +20,7 @@ coverage
 
 # Claude Code setup — local only, not shared with the public repo
 .claude/
+.agents/
+.codex/
 CLAUDE.md
 AGENTS.md

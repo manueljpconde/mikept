@@ -25,7 +25,24 @@ This starts the frontend, backend, local Supabase-compatible Auth/PostgREST/Post
 docker compose --env-file .env.docker down -v
 ```
 
-Local LLM provider support is optional in Docker. The stack does not install or run a model server. To show the `Local model` provider in the UI, edit `.env.docker` and point these values at any OpenAI-compatible `/v1` endpoint you self-host:
+Managed model support is optional in Docker. The stack does not install or run
+a model server. After signup, open `Settings -> Models & API Keys -> Managed
+Models` to add Microsoft Foundry or any local OpenAI-compatible model.
+
+For a model server running on the host machine while Mike runs in Docker, use a
+backend-reachable URL such as:
+
+```text
+http://host.docker.internal:1234/v1
+```
+
+Do not use `127.0.0.1` or `localhost` for host services when the backend runs
+inside Docker; that points at the backend container itself.
+
+The older server-configured local provider is still available as an optional
+default. To show the `Local model` provider in the UI from environment config,
+edit `.env.docker` and point these values at any OpenAI-compatible `/v1`
+endpoint you self-host:
 
 ```env
 ENABLE_LOCAL_LLM=true
@@ -35,7 +52,8 @@ LOCAL_LLM_LABEL=Local model
 LOCAL_LLM_SUPPORTS_TOOLS=false
 ```
 
-Use `host.docker.internal` when the model server runs outside Docker on the same machine. Keep `LOCAL_LLM_SUPPORTS_TOOLS=false` unless that runtime has been explicitly tested with Mike's tool-calling workflows.
+Keep `LOCAL_LLM_SUPPORTS_TOOLS=false` unless that runtime has been explicitly
+tested with Mike's tool-calling workflows.
 
 Manual setup is still available for development:
 
@@ -76,11 +94,75 @@ Open `http://localhost:3000`.
 - At least one supported model provider key, depending on which models you enable
 - LibreOffice for DOC/DOCX to PDF conversion
 
-## Self-Hosted Local LLMs
+## Model Configuration
+
+Mike separates public provider models from managed models.
+
+### Public Models
+
+Public models are configured in `Settings -> Models & API Keys -> Public
+Models`. Add the provider key for whichever public catalog you want to use:
+
+- Anthropic for Claude models
+- Google Gemini for Gemini models
+- OpenAI for public OpenAI models
+
+Public OpenAI keys must be OpenAI platform keys. Microsoft Foundry / Azure
+OpenAI keys belong in Managed Models, not in the public OpenAI key field.
+
+### Managed Models
+
+Managed Models are user-configured OpenAI-compatible model endpoints. Each
+record has its own display name, provider type, base URL, model/deployment name,
+optional API key, enabled state, and capability flags.
+
+Supported managed providers:
+
+- Microsoft Foundry / Azure OpenAI
+- Local OpenAI-compatible runtimes such as LM Studio
+
+Foundry example:
+
+```text
+Provider: Microsoft Foundry
+Display name: MS-FOUNDRY-gpt5mini
+Base URL: https://<resource>.openai.azure.com/openai/v1
+Model name: gpt-5-mini
+API key: paste the Foundry key in the managed model form
+Supports streaming: on
+Supports tools: on only if the deployment works with OpenAI-style tool calls
+Supports reasoning: on only if the deployment supports it
+```
+
+LM Studio example when Mike runs in Docker and LM Studio runs on the host:
+
+```text
+Provider: Local OpenAI-compatible
+Display name: LM Studio
+Base URL: http://host.docker.internal:1234/v1
+Model name: <model-id-from-lm-studio>
+API key: leave blank unless your runtime requires one
+Supports streaming: on
+Supports tools: off by default
+Supports reasoning: off by default
+```
+
+Keep local model tools disabled unless you have tested that the selected model
+emits valid OpenAI-style tool calls and can continue after tool results. With
+tools disabled, normal chat can work, but document-reading and editing workflows
+cannot use that model to inspect documents.
+
+Saved managed model API keys are encrypted by the backend and are never returned
+to the browser after save.
+
+## Server-Configured Local LLMs
 
 Self-hosted deployments can expose a server-configured local model through an
 OpenAI-compatible `/v1/chat/completions` endpoint. The backend calls this
 endpoint directly; the browser only sees a selectable `local:server` model.
+
+Managed Models are preferred for normal self-hosting because they let each admin
+configure their own endpoint and model in Settings.
 
 Ollama example:
 

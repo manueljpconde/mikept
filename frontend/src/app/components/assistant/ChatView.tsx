@@ -17,6 +17,7 @@ import type {
 } from "../shared/types";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import { invalidateDocxBytes } from "@/app/hooks/useFetchDocxBytes";
+import { useT } from "@/contexts/I18nContext";
 
 interface Props {
     messages: MikeMessage[];
@@ -49,6 +50,7 @@ export function ChatView({
         () => new Set(),
     );
     const { setSidebarOpen } = useSidebar();
+    const { t } = useT();
 
 
     const showPanel = useCallback(() => {
@@ -582,8 +584,7 @@ export function ChatView({
                             />
                             <div className="py-3 text-center">
                                 <p className="text-xs text-gray-500">
-                                    AI can make mistakes. Answers are not legal
-                                    advice.
+                                    {t("assistant.disclaimer")}
                                 </p>
                             </div>
                         </div>

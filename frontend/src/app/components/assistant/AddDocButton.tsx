@@ -9,6 +9,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { uploadStandaloneDocument } from "@/app/lib/mikeApi";
+import { useT } from "@/contexts/I18nContext";
 import type { MikeDocument } from "../shared/types";
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function AddDocButton({ onSelectDoc, onBrowseAll, selectedDocIds = [] }: Props) {
+    const { t } = useT();
     const [isOpen, setIsOpen] = useState(false);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,8 +59,8 @@ export function AddDocButton({ onSelectDoc, onBrowseAll, selectedDocIds = [] }: 
                                 ? "text-black hover:bg-gray-100"
                                 : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
                         } ${isOpen ? "bg-gray-100" : ""}`}
-                        title="Add documents"
-                        aria-label="Add documents"
+                        title={t("assistant.addDocuments")}
+                        aria-label={t("assistant.addDocuments")}
                     >
                         {selectedDocIds.length > 0 ? (
                             <span className="font-medium tabular-nums">{selectedDocIds.length}</span>
@@ -69,8 +71,8 @@ export function AddDocButton({ onSelectDoc, onBrowseAll, selectedDocIds = [] }: 
                         )}
                         <span className="hidden sm:inline">
                             {selectedDocIds.length === 1
-                                ? "Document"
-                                : "Documents"}
+                                ? t("assistant.document")
+                                : t("nav.documents")}
                         </span>
                     </button>
                 </DropdownMenuTrigger>
@@ -93,7 +95,9 @@ export function AddDocButton({ onSelectDoc, onBrowseAll, selectedDocIds = [] }: 
                             <Upload className="h-4 w-4 mr-2 text-gray-500" />
                         )}
                         <span className="text-sm">
-                            {uploading ? "Uploading…" : "Upload files"}
+                            {uploading
+                                ? t("assistant.uploading")
+                                : t("assistant.uploadFiles")}
                         </span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
@@ -101,7 +105,7 @@ export function AddDocButton({ onSelectDoc, onBrowseAll, selectedDocIds = [] }: 
                         onClick={onBrowseAll}
                     >
                         <LayoutGridIcon className="h-4 w-4 mr-2 text-gray-500" />
-                        <span className="text-sm">Browse all</span>
+                        <span className="text-sm">{t("assistant.browseAll")}</span>
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

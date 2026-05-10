@@ -44,6 +44,7 @@ import { OwnerOnlyModal } from "@/app/components/shared/OwnerOnlyModal";
 import { DocxView } from "@/app/components/shared/DocxView";
 import { MikeIcon } from "@/components/chat/mike-icon";
 import { useAuth } from "@/contexts/AuthContext";
+import { useT } from "@/contexts/I18nContext";
 import { useUserProfile } from "@/contexts/UserProfileContext";
 import { useSidebar } from "@/app/contexts/SidebarContext";
 import type {
@@ -92,6 +93,7 @@ const CHAT_MIN = 320;
 const CHAT_DEFAULT = 420;
 
 function AssistantGreeting({ username }: { username: string }) {
+    const { t } = useT();
     const [loaded, setLoaded] = useState(false);
     const [iconOffset, setIconOffset] = useState(0);
     const [textOffset, setTextOffset] = useState(0);
@@ -139,7 +141,7 @@ function AssistantGreeting({ username }: { username: string }) {
                             "transform 900ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 800ms ease-in-out 300ms",
                     }}
                 >
-                    Hi, {username}
+                    {t("assistant.greeting", { name: username })}
                 </h1>
             </div>
         </div>
@@ -200,10 +202,13 @@ export default function ProjectAssistantChatPage({ params }: Props) {
     const router = useRouter();
 
     const { setSidebarOpen } = useSidebar();
+    const { t } = useT();
     const { user } = useAuth();
     const { profile } = useUserProfile();
     const username =
-        profile?.displayName?.trim() || user?.email?.split("@")[0] || "there";
+        profile?.displayName?.trim() ||
+        user?.email?.split("@")[0] ||
+        t("assistant.greetingFallbackName");
 
     const [project, setProject] = useState<MikeProject | null>(null);
     const [chatTitle, setChatTitle] = useState<string | null>(null);
@@ -758,7 +763,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                         onClick={() => router.push("/projects")}
                         className="text-gray-500 hover:text-gray-700 transition-colors"
                     >
-                        Projects
+                        {t("nav.projects")}
                     </button>
                     <span className="text-gray-300">›</span>
                     {project ? (
@@ -785,7 +790,7 @@ export default function ProjectAssistantChatPage({ params }: Props) {
                         }
                         className="text-gray-500 hover:text-gray-700 transition-colors"
                     >
-                        Assistant
+                        {t("nav.assistant")}
                     </button>
                     <span className="text-gray-300">›</span>
                     {chatLoaded ? (

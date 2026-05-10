@@ -10,6 +10,35 @@ Open-source release containing the Mike frontend and backend.
 
 ## Setup
 
+For the simplest local self-hosted run, use Docker:
+
+```bash
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build
+```
+
+Open `http://localhost:3000`.
+
+This starts the frontend, backend, local Supabase-compatible Auth/PostgREST/Postgres services, MinIO storage, schema setup, and a storage bucket. To reset the local instance:
+
+```bash
+docker compose --env-file .env.docker down -v
+```
+
+Local LLM provider support is optional in Docker. The stack does not install or run a model server. To show the `Local model` provider in the UI, edit `.env.docker` and point these values at any OpenAI-compatible `/v1` endpoint you self-host:
+
+```env
+ENABLE_LOCAL_LLM=true
+LOCAL_LLM_BASE_URL=http://host.docker.internal:1234/v1
+LOCAL_LLM_MODEL=<model-id>
+LOCAL_LLM_LABEL=Local model
+LOCAL_LLM_SUPPORTS_TOOLS=false
+```
+
+Use `host.docker.internal` when the model server runs outside Docker on the same machine. Keep `LOCAL_LLM_SUPPORTS_TOOLS=false` unless that runtime has been explicitly tested with Mike's tool-calling workflows.
+
+Manual setup is still available for development:
+
 Install dependencies:
 
 ```bash

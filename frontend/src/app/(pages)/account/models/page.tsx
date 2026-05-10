@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, Check, ChevronDown, Eye, EyeOff } from "lucide-react";
+import {
+    AlertCircle,
+    Check,
+    ChevronDown,
+    Eye,
+    EyeOff,
+    Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,8 +20,13 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useUserProfile } from "@/contexts/UserProfileContext";
-import type { ApiKeyState } from "@/app/lib/mikeApi";
-import { MODELS } from "@/app/components/assistant/ModelToggle";
+import type {
+    ApiKeyState,
+    ManagedModel,
+    ManagedModelPayload,
+    ManagedModelProvider,
+} from "@/app/lib/mikeApi";
+import { modelOptions } from "@/app/components/assistant/ModelToggle";
 import {
     isModelAvailable,
     modelGroupToProvider,
@@ -25,32 +37,35 @@ const API_KEY_FIELDS = [
     {
         provider: "claude",
         label: "Anthropic (Claude) API Key",
-        placeholder: "sk-ant-…",
+        placeholder: "sk-ant-...",
     },
     {
         provider: "gemini",
         label: "Google (Gemini) API Key",
-        placeholder: "AI…",
+        placeholder: "AI...",
     },
-    {
-        provider: "openai",
-        label: "OpenAI API Key",
-        placeholder: "sk-…",
-    },
+    { provider: "openai", label: "OpenAI API Key", placeholder: "sk-..." },
 ] as const;
 
 export default function ModelsAndApiKeysPage() {
-    const { profile, updateModelPreference, updateApiKey } = useUserProfile();
+    const {
+        profile,
+        updateModelPreference,
+        updateApiKey,
+        createManagedModel,
+        updateManagedModel,
+        deleteManagedModel,
+    } = useUserProfile();
+    const [providerTab, setProviderTab] = useState<"public" | "managed">(
+        "public",
+    );
 
     return (
-        <div className="space-y-4">
-            {/* Model Preferences */}
-            <div className="pb-6">
-                <div className="flex items-center gap-2 mb-4">
-                    <h2 className="text-2xl font-medium font-serif">
-                        Model Preferences
-                    </h2>
-                </div>
+        <div className="space-y-8">
+            <section>
+                <h2 className="text-2xl font-medium font-serif mb-4">
+                    Model Preferences
+                </h2>
                 <div className="space-y-4 max-w-md">
                     <div>
                         <label className="text-sm text-gray-600 block mb-2">
@@ -72,48 +87,305 @@ export default function ModelsAndApiKeysPage() {
                         />
                     </div>
                 </div>
-            </div>
+            </section>
 
-            {/* API Keys */}
-            <div className="py-6">
-                <div className="flex items-center gap-2 mb-2">
-                    <h2 className="text-2xl font-medium font-serif">
-                        API Keys
-                    </h2>
-                </div>
+            <section className="py-2">
+                <h2 className="text-2xl font-medium font-serif mb-2">
+                    Model Providers
+                </h2>
                 <p className="text-sm text-gray-500 mb-4 max-w-xl">
-                    You must provide your own API keys for the app to work or
-                    add your API keys into the .env file if you are running your
-                    own instance of Mike.
+                    Public models use known provider catalogs. Managed models
+                    are endpoints you configure yourself.
                 </p>
-                <p className="text-xs text-gray-400 mb-4 max-w-xl">
-                    Title generation automatically routes to the cheapest
-                    configured provider model.
-                </p>
-                <div className="space-y-4 max-w-xl">
-                    {API_KEY_FIELDS.map((field) => (
-                        <ApiKeyField
-                            key={`${field.provider}:${profile?.apiKeys[field.provider].configured}:${profile?.apiKeys[field.provider].source}`}
-                            label={field.label}
-                            placeholder={field.placeholder}
-                            hasSavedKey={
-                                !!profile?.apiKeys[field.provider].configured
-                            }
-                            isServerConfigured={
-                                profile?.apiKeys[field.provider].source ===
-                                "env"
-                            }
-                            onSave={(value) =>
-                                updateApiKey(
-                                    field.provider,
-                                    value.trim() || null,
-                                )
-                            }
-                            onRemove={() =>
-                                updateApiKey(field.provider, null)
-                            }
-                        />
-                    ))}
+                <div className="mb-4 grid max-w-xl grid-cols-2 gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setProviderTab("public")}
+                        className={`rounded-md border px-3 py-2 text-sm text-left ${providerTab === "public" ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"}`}
+                    >
+                        Public Models
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setProviderTab("managed")}
+                        className={`rounded-md border px-3 py-2 text-sm text-left ${providerTab === "managed" ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"}`}
+                    >
+                        Managed Models
+                    </button>
+                </div>
+
+                {providerTab === "public" ? (
+                    <div className="space-y-4 max-w-xl">
+                        {API_KEY_FIELDS.map((field) => (
+                            <ApiKeyField
+                                key={`${field.provider}:${profile?.apiKeys[field.provider].configured}:${profile?.apiKeys[field.provider].source}`}
+                                label={field.label}
+                                placeholder={field.placeholder}
+                                hasSavedKey={
+                                    !!profile?.apiKeys[field.provider]
+                                        .configured
+                                }
+                                onSave={(value) =>
+                                    updateApiKey(
+                                        field.provider,
+                                        value.trim() || null,
+                                    )
+                                }
+                                onRemove={() =>
+                                    updateApiKey(field.provider, null)
+                                }
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <ManagedModelsPanel
+                        models={profile?.managedModels ?? []}
+                        onCreate={createManagedModel}
+                        onUpdate={updateManagedModel}
+                        onDelete={deleteManagedModel}
+                    />
+                )}
+            </section>
+        </div>
+    );
+}
+
+function ManagedModelsPanel({
+    models,
+    onCreate,
+    onUpdate,
+    onDelete,
+}: {
+    models: ManagedModel[];
+    onCreate: (payload: ManagedModelPayload) => Promise<boolean>;
+    onUpdate: (id: string, payload: ManagedModelPayload) => Promise<boolean>;
+    onDelete: (id: string) => Promise<boolean>;
+}) {
+    const [editing, setEditing] = useState<ManagedModel | null>(null);
+
+    return (
+        <div className="max-w-xl space-y-4">
+            <div className="space-y-2">
+                {models.length === 0 ? (
+                    <p className="rounded-md border border-gray-200 bg-white px-3 py-3 text-sm text-gray-600">
+                        No managed models configured yet.
+                    </p>
+                ) : (
+                    models.map((model) => (
+                        <div
+                            key={model.id}
+                            className="rounded-md border border-gray-200 bg-white px-3 py-3"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium text-gray-900">
+                                        {model.displayName}
+                                    </p>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        {model.provider === "foundry"
+                                            ? "Microsoft Foundry"
+                                            : "Local OpenAI-compatible"}{" "}
+                                        · {model.modelName}
+                                    </p>
+                                    <p className="mt-1 truncate text-xs text-gray-400">
+                                        {model.baseUrl}
+                                    </p>
+                                </div>
+                                <div className="flex shrink-0 gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setEditing(model)}
+                                    >
+                                        Edit
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => onDelete(model.id)}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+            <ManagedModelForm
+                key={editing?.id ?? "new"}
+                model={editing}
+                onCancel={() => setEditing(null)}
+                onSave={async (payload) => {
+                    const ok = editing
+                        ? await onUpdate(editing.id, payload)
+                        : await onCreate(payload);
+                    if (ok) setEditing(null);
+                    return ok;
+                }}
+            />
+        </div>
+    );
+}
+
+function ManagedModelForm({
+    model,
+    onSave,
+    onCancel,
+}: {
+    model: ManagedModel | null;
+    onSave: (payload: ManagedModelPayload) => Promise<boolean>;
+    onCancel: () => void;
+}) {
+    const [provider, setProvider] = useState<ManagedModelProvider>(
+        model?.provider ?? "foundry",
+    );
+    const [enabled, setEnabled] = useState(model?.enabled ?? true);
+    const [displayName, setDisplayName] = useState(model?.displayName ?? "");
+    const [baseUrl, setBaseUrl] = useState(
+        model?.baseUrl ??
+            (provider === "foundry"
+                ? "https://<resource>.openai.azure.com/openai/v1"
+                : "http://host.docker.internal:1234/v1"),
+    );
+    const [modelName, setModelName] = useState(model?.modelName ?? "");
+    const [apiKey, setApiKey] = useState("");
+    const [supportsTools, setSupportsTools] = useState(
+        model?.supportsTools ?? false,
+    );
+    const [supportsReasoning, setSupportsReasoning] = useState(
+        model?.supportsReasoning ?? false,
+    );
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleProvider = (next: ManagedModelProvider) => {
+        setProvider(next);
+        if (!model) {
+            setBaseUrl(
+                next === "foundry"
+                    ? "https://<resource>.openai.azure.com/openai/v1"
+                    : "http://host.docker.internal:1234/v1",
+            );
+        }
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        const ok = await onSave({
+            provider,
+            enabled,
+            displayName: displayName.trim(),
+            baseUrl: baseUrl.trim(),
+            modelName: modelName.trim(),
+            apiKey: apiKey.trim() || undefined,
+            supportsStreaming: true,
+            supportsTools,
+            supportsReasoning,
+        });
+        setIsSaving(false);
+        if (!ok) alert("Failed to save managed model.");
+    };
+
+    return (
+        <div className="rounded-md border border-gray-200 bg-white px-3 py-3">
+            <p className="text-sm font-medium text-gray-900">
+                {model ? "Edit managed model" : "Add managed model"}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                    type="button"
+                    onClick={() => handleProvider("foundry")}
+                    className={`rounded-md border px-3 py-2 text-sm text-left ${provider === "foundry" ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 text-gray-700"}`}
+                >
+                    Microsoft Foundry
+                </button>
+                <button
+                    type="button"
+                    onClick={() => handleProvider("local_openai_compatible")}
+                    className={`rounded-md border px-3 py-2 text-sm text-left ${provider === "local_openai_compatible" ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 text-gray-700"}`}
+                >
+                    Local
+                </button>
+            </div>
+            <div className="mt-3 space-y-3">
+                <Input
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Display name"
+                />
+                <Input
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder="Base URL"
+                />
+                <Input
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    placeholder={
+                        provider === "foundry"
+                            ? "gpt-5-mini"
+                            : "legal-llm-sft-v4-qwen25-7b"
+                    }
+                />
+                <Input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder={
+                        model?.hasApiKey
+                            ? "Saved key hidden"
+                            : provider === "foundry"
+                              ? "API key"
+                              : "Optional API key"
+                    }
+                />
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                        type="checkbox"
+                        checked={enabled}
+                        onChange={(e) => setEnabled(e.target.checked)}
+                    />
+                    Enabled
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                        type="checkbox"
+                        checked={supportsTools}
+                        onChange={(e) => setSupportsTools(e.target.checked)}
+                    />
+                    Supports tools
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                        type="checkbox"
+                        checked={supportsReasoning}
+                        onChange={(e) => setSupportsReasoning(e.target.checked)}
+                    />
+                    Supports reasoning
+                </label>
+                <div className="flex justify-end gap-2">
+                    {model && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={onCancel}
+                        >
+                            Cancel
+                        </Button>
+                    )}
+                    <Button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={
+                            isSaving ||
+                            !displayName.trim() ||
+                            !baseUrl.trim() ||
+                            !modelName.trim()
+                        }
+                        className="bg-black text-white hover:bg-gray-900"
+                    >
+                        {isSaving ? "Saving..." : "Save"}
+                    </Button>
                 </div>
             </div>
         </div>
@@ -130,17 +402,15 @@ function TabularModelDropdown({
     apiKeys?: ApiKeyState;
 }) {
     const [isOpen, setIsOpen] = useState(false);
-    const selected = MODELS.find((m) => m.id === value);
-    const selectedLabel =
-        selected?.id === "local:server"
-            ? (apiKeys?.local.label ?? selected.label)
-            : (selected?.label ?? "Select a model");
+    const options = modelOptions(apiKeys);
+    const selected = options.find((m) => m.id === value);
+    const selectedLabel = selected?.label ?? "Select a model";
     const selectedAvailable = apiKeys ? isModelAvailable(value, apiKeys) : true;
-    const groups: ("Anthropic" | "Google" | "OpenAI" | "Local")[] = [
+    const groups: ("Anthropic" | "Google" | "OpenAI" | "Managed")[] = [
         "Anthropic",
         "Google",
         "OpenAI",
-        "Local",
+        "Managed",
     ];
 
     return (
@@ -169,16 +439,7 @@ function TabularModelDropdown({
                 align="start"
             >
                 {groups.map((group, gi) => {
-                    const items = MODELS.filter((m) => {
-                        if (m.group !== group) return false;
-                        if (m.id === "local:server") {
-                            return (
-                                !!apiKeys?.local.configured &&
-                                !!apiKeys.local.supportsTools
-                            );
-                        }
-                        return true;
-                    });
+                    const items = options.filter((m) => m.group === group);
                     if (items.length === 0) return null;
                     return (
                         <div key={group}>
@@ -205,9 +466,7 @@ function TabularModelDropdown({
                                         <span
                                             className={`flex-1 ${available ? "" : "text-gray-400"}`}
                                         >
-                                            {m.id === "local:server"
-                                                ? (apiKeys?.local.label ?? m.label)
-                                                : m.label}
+                                            {m.label}
                                         </span>
                                         {!available && (
                                             <AlertCircle className="h-3.5 w-3.5 text-red-500 ml-1" />
@@ -230,14 +489,12 @@ function ApiKeyField({
     label,
     placeholder,
     hasSavedKey,
-    isServerConfigured,
     onSave,
     onRemove,
 }: {
     label: string;
     placeholder: string;
     hasSavedKey: boolean;
-    isServerConfigured: boolean;
     onSave: (value: string) => Promise<boolean>;
     onRemove: () => Promise<boolean>;
 }) {
@@ -245,8 +502,6 @@ function ApiKeyField({
     const [reveal, setReveal] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
-
-    const dirty = value.trim().length > 0;
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -271,20 +526,7 @@ function ApiKeyField({
     return (
         <div>
             <label className="text-sm text-gray-600 block mb-2">{label}</label>
-            {isServerConfigured && (
-                <div className="mb-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-2">
-                    <p className="text-xs text-blue-800">
-                        A server .env key is configured for this provider.
-                        Browser API-key edits are disabled.
-                    </p>
-                    {hasSavedKey && (
-                        <p className="mt-1 text-xs text-blue-800">
-                            The server key will be used for this provider.
-                        </p>
-                    )}
-                </div>
-            )}
-            {hasSavedKey && !isServerConfigured && (
+            {hasSavedKey && (
                 <p className="text-xs text-gray-500 mb-2">
                     A key is saved. Paste a new key to replace it.
                 </p>
@@ -296,22 +538,16 @@ function ApiKeyField({
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         placeholder={
-                            isServerConfigured
-                                ? "Server .env key configured"
-                                : hasSavedKey
-                                  ? "Saved key hidden"
-                                  : placeholder
+                            hasSavedKey ? "Saved key hidden" : placeholder
                         }
                         className="pr-10"
                         autoComplete="off"
                         spellCheck={false}
-                        disabled={isServerConfigured}
                     />
                     <button
                         type="button"
                         onClick={() => setReveal((r) => !r)}
-                        disabled={isServerConfigured}
-                        className="absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600"
                         aria-label={reveal ? "Hide key" : "Show key"}
                     >
                         {reveal ? (
@@ -323,7 +559,7 @@ function ApiKeyField({
                 </div>
                 <Button
                     onClick={handleSave}
-                    disabled={isServerConfigured || isSaving || !dirty || saved}
+                    disabled={isSaving || !value.trim() || saved}
                     className="min-w-[80px] transition-all bg-black hover:bg-gray-900 text-white"
                 >
                     {isSaving ? (
@@ -337,7 +573,7 @@ function ApiKeyField({
                         "Save"
                     )}
                 </Button>
-                {hasSavedKey && !isServerConfigured && (
+                {hasSavedKey && (
                     <Button
                         type="button"
                         variant="outline"

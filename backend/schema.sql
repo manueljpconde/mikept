@@ -18,9 +18,43 @@ create table if not exists public.user_profiles (
   message_credits_used integer not null default 0,
   credits_reset_date timestamptz not null default (now() + interval '30 days'),
   tabular_model text not null default 'gemini-3-flash-preview',
+  openai_provider_settings jsonb not null default '{"provider":"openai","azureEndpoint":"","azureDeployment":""}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.user_profiles
+  add column if not exists openai_provider_settings jsonb
+  not null default '{"provider":"openai","azureEndpoint":"","azureDeployment":""}'::jsonb;
+
+create table if not exists public.user_managed_models (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  provider text not null check (provider in ('foundry', 'local_openai_compatible')),
+  enabled boolean not null default true,
+  display_name text not null,
+  base_url text not null,
+  model_name text not null,
+  encrypted_api_key text,
+  iv text,
+  auth_tag text,
+  supports_streaming boolean not null default true,
+  supports_tools boolean not null default false,
+  supports_reasoning boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint user_managed_models_secret_complete check (
+    (encrypted_api_key is null and iv is null and auth_tag is null)
+    or
+    (encrypted_api_key is not null and iv is not null and auth_tag is not null)
+  )
+);
+
+create index if not exists user_managed_models_user_idx
+  on public.user_managed_models(user_id, enabled);
+
+create unique index if not exists user_managed_models_unique_runtime_idx
+  on public.user_managed_models(user_id, provider, base_url, model_name);
 
 create index if not exists idx_user_profiles_user
   on public.user_profiles(user_id);

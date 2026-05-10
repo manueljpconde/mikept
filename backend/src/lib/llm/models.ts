@@ -2,12 +2,16 @@ import type { Provider } from "./types";
 import { LOCAL_MODEL_ID, isLocalLlmEnabled } from "./localConfig";
 
 export { LOCAL_MODEL_ID };
+export const MANAGED_MODEL_PREFIX = "managed:";
 
 // ---------------------------------------------------------------------------
 // Canonical model IDs
 // ---------------------------------------------------------------------------
 // Main-chat tier (top-end) — user picks one of these per message.
-export const CLAUDE_MAIN_MODELS = ["claude-opus-4-7", "claude-sonnet-4-6"] as const;
+export const CLAUDE_MAIN_MODELS = [
+    "claude-opus-4-7",
+    "claude-sonnet-4-6",
+] as const;
 export const GEMINI_MAIN_MODELS = [
     "gemini-3.1-pro-preview",
     "gemini-3-flash-preview",
@@ -46,6 +50,7 @@ const ALL_MODELS = new Set<string>([
 // ---------------------------------------------------------------------------
 
 export function providerForModel(model: string): Provider {
+    if (model.startsWith(MANAGED_MODEL_PREFIX)) return "managed";
     if (model.startsWith("claude")) return "claude";
     if (model.startsWith("gemini")) return "gemini";
     if (model.startsWith("gpt-")) return "openai";
@@ -59,6 +64,7 @@ export function resolveModel(
     options: { localEnabled?: boolean } = {},
 ): string {
     const localEnabled = options.localEnabled ?? isLocalLlmEnabled();
+    if (id?.startsWith(MANAGED_MODEL_PREFIX)) return id;
     if (id === LOCAL_MODEL_ID) return localEnabled ? id : fallback;
     if (id && ALL_MODELS.has(id)) return id;
     return fallback;

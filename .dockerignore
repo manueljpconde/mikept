@@ -1,0 +1,11 @@
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/.env
+**/.env.*
+!.env.docker.example
+.git
+.DS_Store
+docker/minio/data
+docker/supabase/data

@@ -2,7 +2,7 @@
 // Callers always speak OpenAI-style tools + { role, content } messages; each
 // provider translates internally.
 
-export type Provider = "claude" | "gemini" | "openai" | "local";
+export type Provider = "claude" | "gemini" | "openai" | "local" | "managed";
 
 export type OpenAIToolSchema = {
     type: "function";
@@ -40,6 +40,24 @@ export type UserApiKeys = {
     claude?: string | null;
     gemini?: string | null;
     openai?: string | null;
+    openaiProviderSettings?: {
+        provider: "openai" | "azure";
+        azureEndpoint: string;
+        azureDeployment: string;
+    };
+    managedModels?: {
+        id: string;
+        provider: "foundry" | "local_openai_compatible";
+        enabled: boolean;
+        displayName: string;
+        baseUrl: string;
+        modelName: string;
+        hasApiKey: boolean;
+        apiKey: string | null;
+        supportsStreaming: boolean;
+        supportsTools: boolean;
+        supportsReasoning: boolean;
+    }[];
 };
 
 export type StreamChatParams = {

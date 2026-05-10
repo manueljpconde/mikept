@@ -12,9 +12,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
     type ApiKeyState,
     type ApiKeyProvider,
+    type ManagedModel,
+    type ManagedModelPayload,
+    type OpenAIProviderSettings,
     type UserProfile as ApiUserProfile,
+    createManagedModel,
+    deleteManagedModel,
     getUserProfile,
     saveApiKey,
+    saveOpenAIProviderSettings,
+    updateManagedModel,
     updateUserProfile,
 } from "@/app/lib/mikeApi";
 
@@ -27,6 +34,8 @@ interface UserProfile {
     tier: string;
     tabularModel: string;
     apiKeys: ApiKeyState;
+    openAIProviderSettings: OpenAIProviderSettings;
+    managedModels: ManagedModel[];
 }
 
 interface UserProfileContextType {
@@ -42,6 +51,15 @@ interface UserProfileContextType {
         provider: ApiKeyProvider,
         value: string | null,
     ) => Promise<boolean>;
+    updateOpenAIProviderSettings: (
+        settings: OpenAIProviderSettings,
+    ) => Promise<boolean>;
+    createManagedModel: (payload: ManagedModelPayload) => Promise<boolean>;
+    updateManagedModel: (
+        id: string,
+        payload: ManagedModelPayload,
+    ) => Promise<boolean>;
+    deleteManagedModel: (id: string) => Promise<boolean>;
     reloadProfile: () => Promise<void>;
     incrementMessageCredits: () => Promise<boolean>;
 }
@@ -60,6 +78,11 @@ const DEFAULT_LOCAL_PROVIDER = {
     supportsStreaming: true,
     supportsReasoning: false,
 } as const;
+const DEFAULT_OPENAI_PROVIDER_SETTINGS: OpenAIProviderSettings = {
+    provider: "openai",
+    azureEndpoint: "",
+    azureDeployment: "",
+};
 
 function emptyApiKeys(): ApiKeyState {
     return {
@@ -67,6 +90,7 @@ function emptyApiKeys(): ApiKeyState {
         gemini: { configured: false, source: null },
         openai: { configured: false, source: null },
         local: DEFAULT_LOCAL_PROVIDER,
+        managedModels: [],
     };
 }
 
@@ -82,10 +106,14 @@ function toProfile(data: ApiUserProfile): UserProfile {
         };
     }
     apiKeys.local = apiKeyStatus.local ?? DEFAULT_LOCAL_PROVIDER;
+    apiKeys.managedModels = data.managedModels ?? [];
 
     return {
         ...profile,
         apiKeys,
+        openAIProviderSettings:
+            data.openAIProviderSettings ?? DEFAULT_OPENAI_PROVIDER_SETTINGS,
+        managedModels: data.managedModels ?? [],
     };
 }
 
@@ -113,6 +141,8 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                 tier: "Free",
                 tabularModel: "gemini-3-flash-preview",
                 apiKeys: emptyApiKeys(),
+                openAIProviderSettings: DEFAULT_OPENAI_PROVIDER_SETTINGS,
+                managedModels: [],
             });
         } finally {
             setLoading(false);
@@ -214,11 +244,147 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
         [user],
     );
 
+    const updateOpenAIProviderSettings = useCallback(
+        async (settings: OpenAIProviderSettings): Promise<boolean> => {
+            if (!user) return false;
+            try {
+                const result = await saveOpenAIProviderSettings(settings);
+                setProfile((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              openAIProviderSettings: result.settings,
+                              apiKeys: {
+                                  ...prev.apiKeys,
+                                  claude: {
+                                      configured: !!result.apiKeyStatus.claude,
+                                      source:
+                                          result.apiKeyStatus.sources?.claude ??
+                                          (result.apiKeyStatus.claude
+                                              ? "user"
+                                              : null),
+                                  },
+                                  gemini: {
+                                      configured: !!result.apiKeyStatus.gemini,
+                                      source:
+                                          result.apiKeyStatus.sources?.gemini ??
+                                          (result.apiKeyStatus.gemini
+                                              ? "user"
+                                              : null),
+                                  },
+                                  openai: {
+                                      configured: !!result.apiKeyStatus.openai,
+                                      source:
+                                          result.apiKeyStatus.sources?.openai ??
+                                          (result.apiKeyStatus.openai
+                                              ? "user"
+                                              : null),
+                                  },
+                              },
+                          }
+                        : null,
+                );
+                return true;
+            } catch {
+                return false;
+            }
+        },
+        [user],
+    );
+
     const reloadProfile = useCallback(async () => {
         if (user) {
             await loadProfile();
         }
     }, [user, loadProfile]);
+
+    const addManagedModel = useCallback(
+        async (payload: ManagedModelPayload): Promise<boolean> => {
+            if (!user) return false;
+            try {
+                const created = await createManagedModel(payload);
+                setProfile((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              managedModels: [...prev.managedModels, created],
+                              apiKeys: {
+                                  ...prev.apiKeys,
+                                  managedModels: [
+                                      ...prev.apiKeys.managedModels,
+                                      created,
+                                  ],
+                              },
+                          }
+                        : null,
+                );
+                return true;
+            } catch {
+                return false;
+            }
+        },
+        [user],
+    );
+
+    const editManagedModel = useCallback(
+        async (id: string, payload: ManagedModelPayload): Promise<boolean> => {
+            if (!user) return false;
+            try {
+                const updated = await updateManagedModel(id, payload);
+                setProfile((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              managedModels: prev.managedModels.map((item) =>
+                                  item.id === id ? updated : item,
+                              ),
+                              apiKeys: {
+                                  ...prev.apiKeys,
+                                  managedModels:
+                                      prev.apiKeys.managedModels.map((item) =>
+                                          item.id === id ? updated : item,
+                                      ),
+                              },
+                          }
+                        : null,
+                );
+                return true;
+            } catch {
+                return false;
+            }
+        },
+        [user],
+    );
+
+    const removeManagedModel = useCallback(
+        async (id: string): Promise<boolean> => {
+            if (!user) return false;
+            try {
+                await deleteManagedModel(id);
+                setProfile((prev) =>
+                    prev
+                        ? {
+                              ...prev,
+                              managedModels: prev.managedModels.filter(
+                                  (item) => item.id !== id,
+                              ),
+                              apiKeys: {
+                                  ...prev.apiKeys,
+                                  managedModels:
+                                      prev.apiKeys.managedModels.filter(
+                                          (item) => item.id !== id,
+                                      ),
+                              },
+                          }
+                        : null,
+                );
+                return true;
+            } catch {
+                return false;
+            }
+        },
+        [user],
+    );
 
     const incrementMessageCredits = useCallback(async (): Promise<boolean> => {
         if (!user || !profile) {
@@ -242,6 +408,10 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
                 updateOrganisation,
                 updateModelPreference,
                 updateApiKey,
+                updateOpenAIProviderSettings,
+                createManagedModel: addManagedModel,
+                updateManagedModel: editManagedModel,
+                deleteManagedModel: removeManagedModel,
                 reloadProfile,
                 incrementMessageCredits,
             }}

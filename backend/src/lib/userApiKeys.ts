@@ -5,6 +5,8 @@ import {
     getLocalProviderStatus,
     type LocalProviderStatus,
 } from "./llm/localConfig";
+import { getOpenAIProviderSettings } from "./openaiProviderSettings";
+import { listRuntimeManagedModels } from "./managedModels";
 
 type Db = ReturnType<typeof createServerSupabase>;
 export type ApiKeyProvider = "claude" | "gemini" | "openai";
@@ -22,24 +24,6 @@ type EncryptedKeyRow = {
 };
 
 const PROVIDERS: ApiKeyProvider[] = ["claude", "gemini", "openai"];
-
-function envApiKey(provider: ApiKeyProvider): string | null {
-    if (provider === "claude") {
-        return (
-            process.env.ANTHROPIC_API_KEY?.trim() ||
-            process.env.CLAUDE_API_KEY?.trim() ||
-            null
-        );
-    }
-    if (provider === "openai") {
-        return process.env.OPENAI_API_KEY?.trim() || null;
-    }
-    return process.env.GEMINI_API_KEY?.trim() || null;
-}
-
-export function hasEnvApiKey(provider: ApiKeyProvider): boolean {
-    return !!envApiKey(provider);
-}
 
 function encryptionKey(): Buffer {
     const secret =
@@ -100,6 +84,7 @@ export async function getUserApiKeyStatus(
     userId: string,
     db: Db = createServerSupabase(),
 ): Promise<ApiKeyStatus> {
+    const openaiProviderSettings = await getOpenAIProviderSettings(userId, db);
     const status: ApiKeyStatus = {
         claude: false,
         gemini: false,
@@ -111,13 +96,6 @@ export async function getUserApiKeyStatus(
         },
         local: getLocalProviderStatus(),
     };
-
-    for (const provider of PROVIDERS) {
-        if (hasEnvApiKey(provider)) {
-            status[provider] = true;
-            status.sources[provider] = "env";
-        }
-    }
 
     const { data, error } = await db
         .from("user_api_keys")
@@ -140,10 +118,14 @@ export async function getUserApiKeys(
     userId: string,
     db: Db = createServerSupabase(),
 ): Promise<UserApiKeys> {
+    const openaiProviderSettings = await getOpenAIProviderSettings(userId, db);
+    const managedModels = await listRuntimeManagedModels(userId, db);
     const apiKeys: UserApiKeys = {
-        claude: envApiKey("claude"),
-        gemini: envApiKey("gemini"),
-        openai: envApiKey("openai"),
+        claude: null,
+        gemini: null,
+        openai: null,
+        openaiProviderSettings,
+        managedModels,
     };
 
     const { data, error } = await db
@@ -155,7 +137,6 @@ export async function getUserApiKeys(
     for (const row of (data ?? []) as EncryptedKeyRow[]) {
         const provider = normalizeApiKeyProvider(row.provider);
         if (!provider) continue;
-        if (apiKeys[provider]?.trim()) continue;
         apiKeys[provider] = decrypt(row);
     }
 

@@ -106,6 +106,8 @@ export interface UserProfile {
     tier: string;
     tabularModel: string;
     apiKeyStatus: ApiKeyStatus;
+    openAIProviderSettings?: OpenAIProviderSettings;
+    managedModels?: ManagedModel[];
 }
 
 export async function getUserProfile(): Promise<UserProfile> {
@@ -143,11 +145,38 @@ export type ApiKeyState = Record<
     }
 > & {
     local: LocalProviderState;
+    managedModels: ManagedModel[];
 };
 
 export type ApiKeyStatus = Record<ApiKeyProvider, boolean> & {
     sources?: Partial<Record<ApiKeyProvider, ApiKeySource>>;
     local?: LocalProviderState;
+};
+
+export type OpenAIProviderSettings = {
+    provider: "openai" | "azure";
+    azureEndpoint: string;
+    azureDeployment: string;
+};
+
+export type ManagedModelProvider = "foundry" | "local_openai_compatible";
+
+export type ManagedModel = {
+    id: string;
+    provider: ManagedModelProvider;
+    enabled: boolean;
+    displayName: string;
+    baseUrl: string;
+    modelName: string;
+    hasApiKey: boolean;
+    supportsStreaming: boolean;
+    supportsTools: boolean;
+    supportsReasoning: boolean;
+};
+
+export type ManagedModelPayload = Omit<ManagedModel, "id" | "hasApiKey"> & {
+    apiKey?: string | null;
+    clearApiKey?: boolean;
 };
 
 export async function getApiKeyStatus(): Promise<ApiKeyStatus> {
@@ -162,6 +191,49 @@ export async function saveApiKey(
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ api_key: apiKey }),
+    });
+}
+
+export async function saveOpenAIProviderSettings(
+    settings: OpenAIProviderSettings,
+): Promise<{
+    settings: OpenAIProviderSettings;
+    apiKeyStatus: ApiKeyStatus;
+}> {
+    return apiRequest<{
+        settings: OpenAIProviderSettings;
+        apiKeyStatus: ApiKeyStatus;
+    }>("/user/openai-provider-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+    });
+}
+
+export async function createManagedModel(
+    payload: ManagedModelPayload,
+): Promise<ManagedModel> {
+    return apiRequest<ManagedModel>("/user/managed-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function updateManagedModel(
+    id: string,
+    payload: ManagedModelPayload,
+): Promise<ManagedModel> {
+    return apiRequest<ManagedModel>(`/user/managed-models/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function deleteManagedModel(id: string): Promise<void> {
+    return apiRequest<void>(`/user/managed-models/${id}`, {
+        method: "DELETE",
     });
 }
 

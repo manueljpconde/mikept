@@ -2,6 +2,13 @@
 
 Open-source release containing the Mike frontend and backend.
 
+## Attribution and License Inheritance
+
+This fork is based on Mike, originally authored by Will Chen.
+
+The project remains licensed under AGPL-3.0-only, inherited from the original
+project. See `LICENSE` for the full license text.
+
 ## Contents
 
 - `frontend/` - Next.js application

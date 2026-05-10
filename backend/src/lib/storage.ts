@@ -14,18 +14,26 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  type S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as awsGetSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-function getClient(): S3Client {
-  return new S3Client({
+export function makeStorageClientConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): S3ClientConfig {
+  return {
     region: "auto",
-    endpoint: process.env.R2_ENDPOINT_URL!,
+    endpoint: env.R2_ENDPOINT_URL!,
     credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      accessKeyId: env.R2_ACCESS_KEY_ID!,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY!,
     },
-  });
+    forcePathStyle: env.S3_FORCE_PATH_STYLE === "true",
+  };
+}
+
+function getClient(): S3Client {
+  return new S3Client(makeStorageClientConfig());
 }
 
 const BUCKET = process.env.R2_BUCKET_NAME ?? "mike";

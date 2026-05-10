@@ -11,12 +11,12 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { isModelAvailable } from "@/app/lib/modelAvailability";
-import type { ApiKeyState } from "@/app/lib/mikeApi";
+import type { ApiKeyState, ManagedModel } from "@/app/lib/mikeApi";
 
 export interface ModelOption {
     id: string;
     label: string;
-    group: "Anthropic" | "Google" | "OpenAI" | "Local";
+    group: "Anthropic" | "Google" | "OpenAI" | "Managed";
 }
 
 export const MODELS: ModelOption[] = [
@@ -26,7 +26,6 @@ export const MODELS: ModelOption[] = [
     { id: "gemini-3-flash-preview", label: "Gemini 3 Flash", group: "Google" },
     { id: "gpt-5.5", label: "GPT-5.5", group: "OpenAI" },
     { id: "gpt-5.4-mini", label: "GPT-5.4 Mini", group: "OpenAI" },
-    { id: "local:server", label: "Local model", group: "Local" },
 ];
 
 export const DEFAULT_MODEL_ID = "gemini-3-flash-preview";
@@ -37,8 +36,25 @@ const GROUP_ORDER: ModelOption["group"][] = [
     "Anthropic",
     "Google",
     "OpenAI",
-    "Local",
+    "Managed",
 ];
+
+export function managedModelOption(model: ManagedModel): ModelOption {
+    return {
+        id: `managed:${model.id}`,
+        label: model.displayName || model.modelName,
+        group: "Managed",
+    };
+}
+
+export function modelOptions(apiKeys?: ApiKeyState): ModelOption[] {
+    return [
+        ...MODELS,
+        ...(apiKeys?.managedModels ?? [])
+            .filter((model) => model.enabled)
+            .map(managedModelOption),
+    ];
+}
 
 interface Props {
     value: string;
@@ -48,14 +64,10 @@ interface Props {
 
 export function ModelToggle({ value, onChange, apiKeys }: Props) {
     const [isOpen, setIsOpen] = useState(false);
-    const selected = MODELS.find((m) => m.id === value);
-    const selectedLabel =
-        selected?.id === "local:server"
-            ? (apiKeys?.local.label ?? selected.label)
-            : (selected?.label ?? "Model");
-    const selectedAvailable = apiKeys
-        ? isModelAvailable(value, apiKeys)
-        : true;
+    const options = modelOptions(apiKeys);
+    const selected = options.find((m) => m.id === value);
+    const selectedLabel = selected?.label ?? "Model";
+    const selectedAvailable = apiKeys ? isModelAvailable(value, apiKeys) : true;
 
     return (
         <DropdownMenu onOpenChange={setIsOpen}>
@@ -72,7 +84,9 @@ export function ModelToggle({ value, onChange, apiKeys }: Props) {
                     {!selectedAvailable && (
                         <AlertCircle className="h-3 w-3 shrink-0 text-red-500" />
                     )}
-                    <span className="max-w-[140px] truncate">{selectedLabel}</span>
+                    <span className="max-w-[140px] truncate">
+                        {selectedLabel}
+                    </span>
                     <ChevronDown
                         className={`h-3 w-3 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
                     />
@@ -80,11 +94,8 @@ export function ModelToggle({ value, onChange, apiKeys }: Props) {
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56 z-50" side="top" align="start">
                 {GROUP_ORDER.map((group, gi) => {
-                    const items = MODELS.filter((m) => {
+                    const items = options.filter((m) => {
                         if (m.group !== group) return false;
-                        if (m.id === "local:server") {
-                            return !!apiKeys?.local.configured;
-                        }
                         return true;
                     });
                     if (items.length === 0) return null;
@@ -107,9 +118,7 @@ export function ModelToggle({ value, onChange, apiKeys }: Props) {
                                         <span
                                             className={`flex-1 ${available ? "" : "text-gray-400"}`}
                                         >
-                                            {m.id === "local:server"
-                                                ? (apiKeys?.local.label ?? m.label)
-                                                : m.label}
+                                            {m.label}
                                         </span>
                                         {!available && (
                                             <AlertCircle

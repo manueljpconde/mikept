@@ -6,9 +6,17 @@ import type {
     StreamChatParams,
     StreamChatResult,
 } from "./types";
+import {
+    OPENAI_RESPONSES_URL,
+    resolveOpenAIRequestConfig,
+} from "./openaiConfig";
 
-const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MAX_OUTPUT_TOKENS = 16384;
+
+type OpenAIAdapterOptions = {
+    env?: NodeJS.ProcessEnv;
+    fetchImpl?: typeof fetch;
+};
 
 type ResponseInputItem =
     | { role: "user" | "assistant"; content: string }
@@ -35,9 +43,40 @@ type ResponseStreamEvent = {
     item?: ResponseFunctionCallItem;
 };
 
-function apiKey(override?: string | null): string {
-    return override?.trim() || process.env.OPENAI_API_KEY?.trim() || "";
-}
+type ChatCompletionMessage =
+    | { role: "system" | "user"; content: string }
+    | {
+          role: "assistant";
+          content: string | null;
+          tool_calls?: ChatCompletionToolCall[];
+      }
+    | { role: "tool"; tool_call_id: string; content: string };
+
+type ChatCompletionToolCall = {
+    id: string;
+    type: "function";
+    function: {
+        name: string;
+        arguments: string;
+    };
+};
+
+type ChatCompletionStreamEvent = {
+    choices?: {
+        delta?: {
+            content?: string;
+            tool_calls?: {
+                index?: number;
+                id?: string;
+                type?: "function";
+                function?: {
+                    name?: string;
+                    arguments?: string;
+                };
+            }[];
+        };
+    }[];
+};
 
 function toResponseTools(tools: OpenAIToolSchema[]): ResponseFunctionTool[] {
     return tools.map((tool) => ({
@@ -53,6 +92,20 @@ function toResponseInput(messages: LlmMessage[]): ResponseInputItem[] {
         role: message.role,
         content: message.content,
     }));
+}
+
+function toChatMessages(
+    systemPrompt: string | undefined,
+    messages: LlmMessage[],
+): ChatCompletionMessage[] {
+    const result: ChatCompletionMessage[] = [];
+    if (systemPrompt?.trim()) {
+        result.push({ role: "system", content: systemPrompt });
+    }
+    for (const message of messages) {
+        result.push({ role: message.role, content: message.content });
+    }
+    return result;
 }
 
 function extractSseJson(buffer: string): { events: unknown[]; rest: string } {
@@ -108,8 +161,10 @@ async function createResponse(params: {
     previousResponseId?: string;
     reasoningSummary?: boolean;
     apiKey: string;
+    fetchImpl?: typeof fetch;
 }): Promise<Response> {
-    const response = await fetch(OPENAI_RESPONSES_URL, {
+    const fetchImpl = params.fetchImpl ?? fetch;
+    const response = await fetchImpl(OPENAI_RESPONSES_URL, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${params.apiKey}`,
@@ -141,7 +196,18 @@ async function createResponse(params: {
 
 export async function streamOpenAI(
     params: StreamChatParams,
+    options: OpenAIAdapterOptions = {},
 ): Promise<StreamChatResult> {
+    const requestConfig = resolveOpenAIRequestConfig({
+        model: params.model,
+        apiKeyOverride: params.apiKeys?.openai,
+        settings: params.apiKeys?.openaiProviderSettings,
+        env: options.env,
+    });
+    if (requestConfig.provider === "azure") {
+        return streamAzureOpenAI(params, requestConfig, options);
+    }
+
     const {
         model,
         systemPrompt,
@@ -152,7 +218,6 @@ export async function streamOpenAI(
         enableThinking,
     } = params;
     const maxIter = params.maxIterations ?? 10;
-    const key = apiKey(apiKeys?.openai);
     const responseTools = toResponseTools(tools);
     let input = toResponseInput(params.messages);
     let previousResponseId: string | undefined;
@@ -168,7 +233,8 @@ export async function streamOpenAI(
             stream: true,
             previousResponseId,
             reasoningSummary: !!enableThinking,
-            apiKey: key,
+            apiKey: requestConfig.apiKey,
+            fetchImpl: options.fetchImpl,
         });
         if (!response.body) throw new Error("OpenAI response had no body");
 
@@ -256,19 +322,216 @@ export async function streamOpenAI(
     return { fullText };
 }
 
-export async function completeOpenAIText(params: {
-    model: string;
-    systemPrompt?: string;
-    user: string;
-    maxTokens?: number;
-    apiKeys?: { openai?: string | null };
-}): Promise<string> {
+function parseChatToolCall(call: ChatCompletionToolCall): NormalizedToolCall {
+    let input: Record<string, unknown> = {};
+    try {
+        const parsed = JSON.parse(call.function.arguments || "{}");
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            input = parsed as Record<string, unknown>;
+        }
+    } catch {
+        input = {};
+    }
+    return {
+        id: call.id,
+        name: call.function.name,
+        input,
+    };
+}
+
+async function postAzureChatCompletion(params: {
+    url: string;
+    apiKey: string;
+    body: Record<string, unknown>;
+    fetchImpl?: typeof fetch;
+}): Promise<Response> {
+    const fetchImpl = params.fetchImpl ?? fetch;
+    const response = await fetchImpl(params.url, {
+        method: "POST",
+        headers: {
+            "api-key": params.apiKey,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(params.body),
+    });
+
+    if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(
+            `Azure OpenAI request failed (${response.status}): ${text || response.statusText}`,
+        );
+    }
+
+    return response;
+}
+
+async function streamAzureOpenAI(
+    params: StreamChatParams,
+    requestConfig: Extract<
+        ReturnType<typeof resolveOpenAIRequestConfig>,
+        { provider: "azure" }
+    >,
+    options: OpenAIAdapterOptions,
+): Promise<StreamChatResult> {
+    const { systemPrompt, tools = [], callbacks = {}, runTools } = params;
+    const maxIter = params.maxIterations ?? 10;
+    let messages = toChatMessages(systemPrompt, params.messages);
+    let fullText = "";
+    const hasTools = tools.length > 0;
+
+    for (let iter = 0; iter < maxIter; iter++) {
+        const response = await postAzureChatCompletion({
+            url: requestConfig.url,
+            apiKey: requestConfig.apiKey,
+            fetchImpl: options.fetchImpl,
+            body: {
+                model: requestConfig.model,
+                messages,
+                stream: true,
+                ...(hasTools ? { tools } : {}),
+            },
+        });
+        if (!response.body)
+            throw new Error("Azure OpenAI response had no body");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        const toolCallParts = new Map<
+            number,
+            { id?: string; name?: string; arguments: string }
+        >();
+        let buffer = "";
+        let pendingText = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const extracted = extractSseJson(buffer);
+            buffer = extracted.rest;
+
+            for (const event of extracted.events as ChatCompletionStreamEvent[]) {
+                const delta = event.choices?.[0]?.delta;
+                if (!delta) continue;
+
+                if (typeof delta.content === "string") {
+                    if (hasTools) {
+                        pendingText += delta.content;
+                    } else {
+                        fullText += delta.content;
+                        callbacks.onContentDelta?.(delta.content);
+                    }
+                }
+
+                for (const part of delta.tool_calls ?? []) {
+                    const index = part.index ?? 0;
+                    const existing = toolCallParts.get(index) ?? {
+                        arguments: "",
+                    };
+                    if (part.id) existing.id = part.id;
+                    if (part.function?.name) existing.name = part.function.name;
+                    if (part.function?.arguments) {
+                        existing.arguments += part.function.arguments;
+                    }
+                    toolCallParts.set(index, existing);
+                }
+            }
+        }
+
+        const chatToolCalls: ChatCompletionToolCall[] = Array.from(
+            toolCallParts.entries(),
+        )
+            .sort(([a], [b]) => a - b)
+            .map(([, part], index) => ({
+                id: part.id || `tool_call_${index}`,
+                type: "function" as const,
+                function: {
+                    name: part.name || "",
+                    arguments: part.arguments || "{}",
+                },
+            }))
+            .filter((call) => call.function.name);
+
+        if (!chatToolCalls.length || !runTools) {
+            if (pendingText) {
+                fullText += pendingText;
+                callbacks.onContentDelta?.(pendingText);
+            }
+            break;
+        }
+
+        const normalizedCalls = chatToolCalls.map(parseChatToolCall);
+        normalizedCalls.forEach((call) => callbacks.onToolCallStart?.(call));
+        const results = await runTools(normalizedCalls);
+        messages = [
+            ...messages,
+            {
+                role: "assistant",
+                content: pendingText || null,
+                tool_calls: chatToolCalls,
+            },
+            ...results.map((result) => ({
+                role: "tool" as const,
+                tool_call_id: result.tool_use_id,
+                content: result.content,
+            })),
+        ];
+    }
+
+    return { fullText };
+}
+
+export async function completeOpenAIText(
+    params: {
+        model: string;
+        systemPrompt?: string;
+        user: string;
+        maxTokens?: number;
+        apiKeys?: {
+            openai?: string | null;
+            openaiProviderSettings?: {
+                provider: "openai" | "azure";
+                azureEndpoint: string;
+                azureDeployment: string;
+            };
+        };
+    },
+    options: OpenAIAdapterOptions = {},
+): Promise<string> {
+    const requestConfig = resolveOpenAIRequestConfig({
+        model: params.model,
+        apiKeyOverride: params.apiKeys?.openai,
+        settings: params.apiKeys?.openaiProviderSettings,
+        env: options.env,
+    });
+    if (requestConfig.provider === "azure") {
+        const response = await postAzureChatCompletion({
+            url: requestConfig.url,
+            apiKey: requestConfig.apiKey,
+            fetchImpl: options.fetchImpl,
+            body: {
+                model: requestConfig.model,
+                messages: toChatMessages(params.systemPrompt, [
+                    { role: "user", content: params.user },
+                ]),
+                stream: false,
+                max_completion_tokens: params.maxTokens ?? 512,
+            },
+        });
+        const json = (await response.json()) as {
+            choices?: { message?: { content?: string } }[];
+        };
+        return json.choices?.[0]?.message?.content ?? "";
+    }
+
     const response = await createResponse({
         model: params.model,
         instructions: params.systemPrompt,
         input: [{ role: "user", content: params.user }],
         maxTokens: params.maxTokens ?? 512,
-        apiKey: apiKey(params.apiKeys?.openai),
+        apiKey: requestConfig.apiKey,
+        fetchImpl: options.fetchImpl,
     });
     const json = (await response.json()) as {
         output_text?: string;

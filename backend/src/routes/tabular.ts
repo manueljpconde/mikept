@@ -14,6 +14,7 @@ import { completeText, streamChatWithTools } from "../lib/llm";
 import { getUserApiKeys, getUserModelSettings } from "../lib/userSettings";
 import {
     checkProjectAccess,
+    ensureDocAccess,
     ensureReviewAccess,
     listAccessibleProjectIds,
 } from "../lib/access";
@@ -41,6 +42,48 @@ function formatPromptSuffix(format?: string, tags?: string[]): string {
         default:
             return "";
     }
+}
+
+export type DocumentAccessRow = {
+    id: string;
+    user_id: string;
+    project_id: string | null;
+};
+
+// Internal: exported so the unit-test file can import it. Outside callers
+// should keep using `ensureDocAccess` directly.
+export async function assertDocumentsAccessible(
+    documentIds: string[],
+    userId: string,
+    userEmail: string | undefined,
+    db: ReturnType<typeof createServerSupabase>,
+): Promise<
+    | { ok: true; docs: DocumentAccessRow[] }
+    | { ok: false; bad: string[] }
+> {
+    if (documentIds.length === 0) return { ok: true, docs: [] };
+    const uniqueIds = [...new Set(documentIds)];
+
+    const { data: rows, error } = await db
+        .from("documents")
+        .select("id, user_id, project_id")
+        .in("id", uniqueIds);
+    if (error) return { ok: false, bad: uniqueIds };
+
+    const docs = (rows ?? []) as DocumentAccessRow[];
+    const found = new Set(docs.map((d) => d.id));
+    const missing = uniqueIds.filter((id) => !found.has(id));
+
+    const denied: string[] = [];
+    for (const doc of docs) {
+        const access = await ensureDocAccess(doc, userId, userEmail, db);
+        if (!access.ok) denied.push(doc.id);
+    }
+
+    if (missing.length === 0 && denied.length === 0) {
+        return { ok: true, docs };
+    }
+    return { ok: false, bad: [...missing, ...denied] };
 }
 
 export const tabularRouter = Router();
@@ -192,6 +235,23 @@ tabularRouter.post("/", requireAuth, async (req, res) => {
         if (!access.ok)
             return void res.status(404).json({ detail: "Project not found" });
     }
+
+    const docAccess = await assertDocumentsAccessible(
+        Array.isArray(document_ids) ? document_ids : [],
+        userId,
+        userEmail,
+        db,
+    );
+    if (!docAccess.ok) {
+        console.warn(
+            "[tabular.access] denied document access on create",
+            { count: docAccess.bad.length },
+        );
+        return void res
+            .status(404)
+            .json({ detail: "One or more documents not found" });
+    }
+
     const { data: review, error } = await db
         .from("tabular_reviews")
         .insert({
@@ -469,17 +529,15 @@ tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
         updates.shared_with = sharedWithUpdate;
     }
 
-    const { data: updatedReview, error: updateError } = await db
-        .from("tabular_reviews")
-        .update(updates)
-        .eq("id", reviewId)
-        .select("*")
-        .single();
-    if (updateError || !updatedReview)
-        return void res.status(500).json({
-            detail: updateError?.message ?? "Failed to update review",
-        });
-
+    // Resolve and validate the final document set BEFORE any DB write so that
+    // a failed doc check leaves the review row untouched.
+    let cellPlan:
+        | {
+              existingKeys: Set<string>;
+              documentIds: string[];
+              removedDocIds: string[];
+          }
+        | null = null;
     if (
         Array.isArray(req.body.columns_config) ||
         Array.isArray(req.body.document_ids)
@@ -495,32 +553,18 @@ tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
         );
 
         let documentIds: string[];
+        let removedDocIds: string[] = [];
 
         if (Array.isArray(req.body.document_ids)) {
-            // document_ids is the new source of truth — delete removed docs' cells
             const newDocIds = req.body.document_ids as string[];
             const existingDocIds = (existingCells ?? []).map(
                 (cell) => cell.document_id,
             );
-            const removedDocIds = existingDocIds.filter(
+            removedDocIds = existingDocIds.filter(
                 (id) => !newDocIds.includes(id),
             );
-
-            if (removedDocIds.length > 0) {
-                const { error: deleteError } = await db
-                    .from("tabular_cells")
-                    .delete()
-                    .eq("review_id", reviewId)
-                    .in("document_id", removedDocIds);
-                if (deleteError)
-                    return void res
-                        .status(500)
-                        .json({ detail: deleteError.message });
-            }
-
             documentIds = newDocIds;
         } else {
-            // No document change — derive from existing cells
             documentIds = [
                 ...new Set(
                     (existingCells ?? []).map((cell) => cell.document_id),
@@ -533,6 +577,50 @@ tabularRouter.patch("/:reviewId", requireAuth, async (req, res) => {
                     .eq("project_id", existingReview.project_id);
                 documentIds = (projectDocs ?? []).map((doc) => doc.id);
             }
+        }
+
+        const docAccess = await assertDocumentsAccessible(
+            documentIds,
+            userId,
+            userEmail,
+            db,
+        );
+        if (!docAccess.ok) {
+            console.warn(
+                "[tabular.access] denied document access on update",
+                { count: docAccess.bad.length },
+            );
+            return void res
+                .status(404)
+                .json({ detail: "One or more documents not found" });
+        }
+
+        cellPlan = { existingKeys, documentIds, removedDocIds };
+    }
+
+    const { data: updatedReview, error: updateError } = await db
+        .from("tabular_reviews")
+        .update(updates)
+        .eq("id", reviewId)
+        .select("*")
+        .single();
+    if (updateError || !updatedReview)
+        return void res.status(500).json({
+            detail: updateError?.message ?? "Failed to update review",
+        });
+
+    if (cellPlan) {
+        const { existingKeys, documentIds, removedDocIds } = cellPlan;
+        if (removedDocIds.length > 0) {
+            const { error: deleteError } = await db
+                .from("tabular_cells")
+                .delete()
+                .eq("review_id", reviewId)
+                .in("document_id", removedDocIds);
+            if (deleteError)
+                return void res
+                    .status(500)
+                    .json({ detail: deleteError.message });
         }
 
         const activeColumns = Array.isArray(req.body.columns_config)
@@ -657,6 +745,36 @@ tabularRouter.post(
         if (!column)
             return void res.status(400).json({ detail: "Column not found" });
 
+        const { data: cell, error: cellError } = await db
+            .from("tabular_cells")
+            .select("id")
+            .eq("review_id", reviewId)
+            .eq("document_id", document_id)
+            .eq("column_index", column_index)
+            .maybeSingle();
+        if (cellError)
+            return void res
+                .status(500)
+                .json({ detail: "Failed to validate cell" });
+        if (!cell)
+            return void res.status(404).json({ detail: "Cell not found" });
+
+        const docAccess = await assertDocumentsAccessible(
+            [document_id],
+            userId,
+            userEmail,
+            db,
+        );
+        if (!docAccess.ok) {
+            console.warn(
+                "[tabular.access] denied document access on regenerate",
+                { count: docAccess.bad.length },
+            );
+            return void res
+                .status(404)
+                .json({ detail: "Document not found" });
+        }
+
         const { data: doc } = await db
             .from("documents")
             .select("id, filename, file_type")
@@ -777,6 +895,23 @@ tabularRouter.post("/:reviewId/generate", requireAuth, async (req, res) => {
             .eq("project_id", review.project_id)
             .order("created_at", { ascending: true });
         docs = data ?? [];
+    }
+
+    const finalDocIds = docs.map((d) => d.id as string);
+    const docAccess = await assertDocumentsAccessible(
+        finalDocIds,
+        userId,
+        userEmail,
+        db,
+    );
+    if (!docAccess.ok) {
+        console.warn(
+            "[tabular.access] denied document access on generate",
+            { count: docAccess.bad.length },
+        );
+        return void res
+            .status(404)
+            .json({ detail: "One or more documents not found" });
     }
 
     const { tabular_model, api_keys } = await getUserModelSettings(userId, db);

@@ -38,6 +38,8 @@ http://host.docker.internal:1234/v1
 
 Do not use `127.0.0.1` or `localhost` for host services when the backend runs
 inside Docker; that points at the backend container itself.
+The Docker compose file maps `host.docker.internal` to the host gateway for
+Linux Docker as well as Docker Desktop.
 
 The older server-configured local provider is still available as an optional
 default. To show the `Local model` provider in the UI from environment config,

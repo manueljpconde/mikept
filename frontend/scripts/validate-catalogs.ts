@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { findDuplicateTopLevelKeys } from "./findDuplicateTopLevelKeys.ts";
 import { validateCatalogSet, type ValidationError } from "./validateCatalogs.ts";
 
 const LOCALES = ["en", "pt", "es", "fr", "de"] as const;
@@ -35,6 +36,13 @@ function loadCatalogs(): Loaded {
                 locale,
                 rule: "utf8",
                 message: "file contains invalid UTF-8 (replacement char detected)",
+            });
+        }
+        for (const dup of findDuplicateTopLevelKeys(raw)) {
+            parseErrors.push({
+                locale,
+                rule: "duplicate-key",
+                message: `duplicate top-level key '${dup.key}' (lines ${dup.firstLine} and ${dup.secondLine})`,
             });
         }
         try {

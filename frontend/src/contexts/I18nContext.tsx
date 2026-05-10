@@ -81,6 +81,13 @@ export function I18nProvider({
         };
     }, [locale, enFallback]);
 
+    useEffect(() => {
+        if (typeof document === "undefined") return;
+        if (document.documentElement.lang !== locale) {
+            document.documentElement.lang = locale;
+        }
+    }, [locale]);
+
     const setLocale = useCallback(
         async (next: SupportedLocale): Promise<boolean> => {
             if (!isSupportedLocale(next)) {

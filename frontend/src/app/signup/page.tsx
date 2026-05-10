@@ -16,7 +16,7 @@ import { updateUserProfile } from "@/app/lib/mikeApi";
 export default function SignupPage() {
     const router = useRouter();
     const { isAuthenticated, authLoading } = useAuth();
-    const { t } = useT();
+    const { t, locale } = useT();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -60,18 +60,17 @@ export default function SignupPage() {
             if (data.session) {
                 const trimmedName = name.trim();
                 const trimmedOrg = organisation.trim();
-                if (trimmedName || trimmedOrg) {
-                    try {
-                        await updateUserProfile({
-                            ...(trimmedName && { displayName: trimmedName }),
-                            ...(trimmedOrg && { organisation: trimmedOrg }),
-                        });
-                    } catch (profileError) {
-                        console.error(
-                            "[signup] failed to persist profile fields",
-                            profileError,
-                        );
-                    }
+                try {
+                    await updateUserProfile({
+                        ...(trimmedName && { displayName: trimmedName }),
+                        ...(trimmedOrg && { organisation: trimmedOrg }),
+                        locale,
+                    });
+                } catch (profileError) {
+                    console.error(
+                        "[signup] failed to persist profile fields",
+                        profileError,
+                    );
                 }
             }
             setSuccess(true);

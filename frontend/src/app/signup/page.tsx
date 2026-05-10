@@ -9,11 +9,14 @@ import Link from "next/link";
 import { SiteLogo } from "@/components/site-logo";
 import { CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useT } from "@/contexts/I18nContext";
+import { LanguageSwitcher } from "@/app/components/i18n/LanguageSwitcher";
 import { updateUserProfile } from "@/app/lib/mikeApi";
 
 export default function SignupPage() {
     const router = useRouter();
     const { isAuthenticated, authLoading } = useAuth();
+    const { t } = useT();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,16 +37,14 @@ export default function SignupPage() {
         setLoading(true);
         setError(null);
 
-        // Validate passwords match
         if (password !== confirmPassword) {
-            setError("Passwords do not match");
+            setError(t("auth.signup.passwordMismatch"));
             setLoading(false);
             return;
         }
 
-        // Validate password length
         if (password.length < 6) {
-            setError("Password must be at least 6 characters");
+            setError(t("auth.signup.passwordTooShort"));
             setLoading(false);
             return;
         }
@@ -81,14 +82,13 @@ export default function SignupPage() {
             setError(
                 error instanceof Error
                     ? error.message
-                    : "An error occurred during signup",
+                    : t("auth.signup.genericError"),
             );
         } finally {
             setLoading(false);
         }
     };
 
-    // Success View
     if (success) {
         return (
             <div className="min-h-dvh bg-white flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative">
@@ -101,10 +101,10 @@ export default function SignupPage() {
                             <CheckCircle2 className="h-6 w-6 text-green-600" />
                         </div>
                         <h2 className="text-2xl font-semibold text-gray-900 mb-3">
-                            Account created!
+                            {t("auth.signup.successHeading")}
                         </h2>
                         <p className="text-gray-600 leading-relaxed">
-                            Redirecting you to the home page...
+                            {t("auth.signup.successBody")}
                         </p>
                     </div>
                 </div>
@@ -112,27 +112,29 @@ export default function SignupPage() {
         );
     }
 
-    // Default Signup Form View
     return (
         <div className="min-h-dvh bg-white flex items-start justify-center px-6 pt-32 md:pt-40 pb-10 relative">
             <div className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2">
                 <SiteLogo size="md" className="md:text-4xl" asLink />
             </div>
+            <div className="absolute top-4 md:top-8 right-4 md:right-8">
+                <LanguageSwitcher />
+            </div>
             <div className="w-full max-w-md">
                 <div className="bg-white border border-gray-200 rounded-2xl p-8 mb-4">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-left text-2xl font-serif">
-                            Create Account
+                            {t("auth.signup.heading")}
                         </h2>
                         <div className="bg-gray-100 p-1 rounded-md flex text-xs font-medium">
                             <Link
                                 href="/login"
                                 className="px-3 py-1 text-gray-500 hover:text-gray-900"
                             >
-                                Log in
+                                {t("auth.signup.tabLogin")}
                             </Link>
                             <span className="px-3 py-1 bg-white rounded-sm shadow-sm text-gray-900">
-                                Sign up
+                                {t("auth.signup.tabSignup")}
                             </span>
                         </div>
                     </div>
@@ -143,9 +145,9 @@ export default function SignupPage() {
                                 htmlFor="name"
                                 className="block text-sm font-medium text-gray-700 mb-2"
                             >
-                                Name{" "}
+                                {t("auth.signup.name")}{" "}
                                 <span className="text-gray-400 font-normal">
-                                    (optional)
+                                    {t("auth.signup.optional")}
                                 </span>
                             </label>
                             <Input
@@ -153,7 +155,7 @@ export default function SignupPage() {
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="Your name"
+                                placeholder={t("auth.signup.namePlaceholder")}
                                 className="w-full"
                             />
                         </div>
@@ -163,9 +165,9 @@ export default function SignupPage() {
                                 htmlFor="organisation"
                                 className="block text-sm font-medium text-gray-700 mb-2"
                             >
-                                Organisation{" "}
+                                {t("auth.signup.organisation")}{" "}
                                 <span className="text-gray-400 font-normal">
-                                    (optional)
+                                    {t("auth.signup.optional")}
                                 </span>
                             </label>
                             <Input
@@ -175,7 +177,9 @@ export default function SignupPage() {
                                 onChange={(e) =>
                                     setOrganisation(e.target.value)
                                 }
-                                placeholder="Your organisation"
+                                placeholder={t(
+                                    "auth.signup.organisationPlaceholder",
+                                )}
                                 className="w-full"
                             />
                         </div>
@@ -185,14 +189,14 @@ export default function SignupPage() {
                                 htmlFor="email"
                                 className="block text-sm font-medium text-gray-700 mb-2"
                             >
-                                Email
+                                {t("auth.signup.email")}
                             </label>
                             <Input
                                 id="email"
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="Enter your email"
+                                placeholder={t("auth.signup.emailPlaceholder")}
                                 required
                                 className="w-full"
                             />
@@ -203,14 +207,16 @@ export default function SignupPage() {
                                 htmlFor="password"
                                 className="block text-sm font-medium text-gray-700 mb-2"
                             >
-                                Password
+                                {t("auth.signup.password")}
                             </label>
                             <Input
                                 id="password"
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Create a password (min. 6 characters)"
+                                placeholder={t(
+                                    "auth.signup.passwordPlaceholder",
+                                )}
                                 required
                                 className="w-full"
                             />
@@ -221,7 +227,7 @@ export default function SignupPage() {
                                 htmlFor="confirmPassword"
                                 className="block text-sm font-medium text-gray-700 mb-2"
                             >
-                                Confirm Password
+                                {t("auth.signup.confirmPassword")}
                             </label>
                             <Input
                                 id="confirmPassword"
@@ -230,7 +236,9 @@ export default function SignupPage() {
                                 onChange={(e) =>
                                     setConfirmPassword(e.target.value)
                                 }
-                                placeholder="Confirm your password"
+                                placeholder={t(
+                                    "auth.signup.confirmPasswordPlaceholder",
+                                )}
                                 required
                                 className="w-full"
                             />
@@ -247,37 +255,35 @@ export default function SignupPage() {
                             disabled={loading}
                             className="w-full bg-black hover:bg-gray-900 text-white"
                         >
-                            {loading ? "Creating account..." : "Sign up"}
+                            {loading
+                                ? t("auth.signup.submitting")
+                                : t("auth.signup.submit")}
                         </Button>
                     </form>
 
-                    {/* Terms and Privacy */}
                     <div className="mt-4 text-center text-xs text-gray-500">
-                        By signing up, you agree to our{" "}
+                        {t("auth.signup.termsPrefix")}{" "}
                         <Link
                             href="https://mikeoss.com/terms"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline"
                         >
-                            Terms of Use
+                            {t("auth.signup.termsLink")}
                         </Link>{" "}
-                        and{" "}
+                        {t("auth.signup.termsAnd")}{" "}
                         <Link
                             href="https://mikeoss.com/privacy"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:underline"
                         >
-                            Privacy Policy
+                            {t("auth.signup.privacyLink")}
                         </Link>
                     </div>
                 </div>
                 <p className="text-center text-xs text-gray-500 leading-relaxed px-2">
-                    Mike hosted on MikeOSS.com is currently a demo service.
-                    Please do not upload, submit, or store sensitive,
-                    confidential, privileged, client, or personally identifiable
-                    documents.
+                    {t("auth.disclaimer")}
                 </p>
             </div>
         </div>

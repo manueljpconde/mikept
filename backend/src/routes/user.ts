@@ -23,6 +23,11 @@ import {
     parseManagedModelPayload,
     updateManagedModel,
 } from "../lib/managedModels";
+import {
+    DEFAULT_LOCALE,
+    isValidLocale,
+    type SupportedLocale,
+} from "../lib/i18n/locales";
 
 export const userRouter = Router();
 
@@ -45,6 +50,7 @@ type UserProfileRow = {
     tier: string;
     tabular_model: string;
     openai_provider_settings?: unknown;
+    locale?: string | null;
 };
 
 function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
@@ -63,6 +69,9 @@ function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
             : resolveModel(row.tabular_model, DEFAULT_TABULAR_MODEL, {
                   localEnabled: !!localConfig?.enabled,
               });
+    const locale: SupportedLocale = isValidLocale(row.locale)
+        ? row.locale
+        : DEFAULT_LOCALE;
     return {
         displayName: row.display_name,
         organisation: row.organisation,
@@ -71,6 +80,7 @@ function serializeProfile(row: UserProfileRow, apiKeyStatus?: ApiKeyStatus) {
         creditsRemaining: Math.max(MONTHLY_CREDIT_LIMIT - creditsUsed, 0),
         tier: row.tier || "Free",
         tabularModel,
+        locale,
         openAIProviderSettings:
             row.openai_provider_settings === undefined
                 ? undefined
@@ -106,6 +116,7 @@ function validateProfilePayload(body: unknown):
               display_name?: string | null;
               organisation?: string | null;
               tabular_model?: string;
+              locale?: SupportedLocale;
               updated_at: string;
           };
       }
@@ -119,6 +130,7 @@ function validateProfilePayload(body: unknown):
         "displayName",
         "organisation",
         "tabularModel",
+        "locale",
     ]);
     const invalidField = Object.keys(raw).find(
         (key) => !allowedFields.has(key),
@@ -134,6 +146,7 @@ function validateProfilePayload(body: unknown):
         display_name?: string | null;
         organisation?: string | null;
         tabular_model?: string;
+        locale?: SupportedLocale;
         updated_at: string;
     } = { updated_at: new Date().toISOString() };
 
@@ -182,6 +195,13 @@ function validateProfilePayload(body: unknown):
         update.tabular_model = resolved;
     }
 
+    if ("locale" in raw) {
+        if (!isValidLocale(raw.locale)) {
+            return { ok: false, detail: "Unsupported locale" };
+        }
+        update.locale = raw.locale;
+    }
+
     return { ok: true, update };
 }
 
@@ -206,7 +226,7 @@ async function loadProfile(
     let { data, error } = await db
         .from("user_profiles")
         .select(
-            "display_name, organisation, message_credits_used, credits_reset_date, tier, tabular_model, openai_provider_settings",
+            "display_name, organisation, message_credits_used, credits_reset_date, tier, tabular_model, openai_provider_settings, locale",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -223,7 +243,7 @@ async function loadProfile(
         const created = await db
             .from("user_profiles")
             .select(
-                "display_name, organisation, message_credits_used, credits_reset_date, tier, tabular_model, openai_provider_settings",
+                "display_name, organisation, message_credits_used, credits_reset_date, tier, tabular_model, openai_provider_settings, locale",
             )
             .eq("user_id", userId)
             .single();
@@ -247,7 +267,7 @@ async function loadProfile(
             })
             .eq("user_id", userId)
             .select(
-                "display_name, organisation, message_credits_used, credits_reset_date, tier, tabular_model, openai_provider_settings",
+                "display_name, organisation, message_credits_used, credits_reset_date, tier, tabular_model, openai_provider_settings, locale",
             )
             .single();
 

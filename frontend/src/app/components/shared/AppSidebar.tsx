@@ -13,18 +13,20 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/contexts/UserProfileContext";
+import { useT } from "@/contexts/I18nContext";
 import { useChatHistoryContext } from "@/app/contexts/ChatHistoryContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { MikeIcon } from "@/components/chat/mike-icon";
 import { SidebarChatItem } from "@/app/components/shared/SidebarChatItem";
-import { listProjects } from "@/app/lib/mikeApi";
+import { LanguageSwitcher } from "@/app/components/i18n/LanguageSwitcher";
+import { listProjects, updateUserProfile } from "@/app/lib/mikeApi";
 
 const NAV_ITEMS = [
-    { href: "/assistant", label: "Assistant", icon: MessageSquare },
-    { href: "/projects", label: "Projects", icon: FolderOpen },
-    { href: "/tabular-reviews", label: "Tabular Review", icon: Table2 },
-    { href: "/workflows", label: "Workflows", icon: Library },
+    { href: "/assistant", labelKey: "nav.assistant", icon: MessageSquare },
+    { href: "/projects", labelKey: "nav.projects", icon: FolderOpen },
+    { href: "/tabular-reviews", labelKey: "nav.tabularReview", icon: Table2 },
+    { href: "/workflows", labelKey: "nav.workflows", icon: Library },
 ];
 
 interface AppSidebarProps {
@@ -35,6 +37,7 @@ interface AppSidebarProps {
 export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
     const { user } = useAuth();
     const { profile } = useUserProfile();
+    const { t } = useT();
     const { chats, currentChatId, setCurrentChatId } = useChatHistoryContext();
     const router = useRouter();
     const pathname = usePathname();
@@ -141,16 +144,17 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                 <button
                     onClick={onToggle}
                     className="h-9 w-9 p-2.5 items-center flex hover:bg-gray-100 rounded-md transition-colors"
-                    title={isOpen ? "Close sidebar" : "Open sidebar"}
+                    title={isOpen ? t("sidebar.close") : t("sidebar.open")}
                 >
                     <PanelLeft className="h-4 w-4" />
                 </button>
             </div>
 
             {/* Nav items */}
-            {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+            {NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => {
                 const isActive =
                     pathname === href || pathname.startsWith(href + "/");
+                const label = t(labelKey);
                 return (
                     <div key={href} className="py-1 px-2.5">
                         <button
@@ -190,7 +194,7 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                             shouldAnimate ? "sidebar-fade-in" : ""
                         }`}
                     >
-                        <span>Assistant History</span>
+                        <span>{t("sidebar.assistantHistory")}</span>
                         <ChevronDown
                             className={`h-3.5 w-3.5 transition-transform ${historyCollapsed ? "-rotate-90" : ""}`}
                         />
@@ -299,8 +303,20 @@ export function AppSidebar({ isOpen, onToggle }: AppSidebarProps) {
                                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 rounded-md"
                                 >
                                     <User className="h-4 w-4" />
-                                    Account Settings
+                                    {t("nav.accountSettings")}
                                 </button>
+                                <div className="px-4 py-2 flex items-center justify-between gap-2">
+                                    <span className="text-sm text-gray-700">
+                                        {t("common.language")}
+                                    </span>
+                                    <LanguageSwitcher
+                                        onLocaleChange={async (next) => {
+                                            await updateUserProfile({
+                                                locale: next,
+                                            });
+                                        }}
+                                    />
+                                </div>
                             </div>
                         )}
                     </div>

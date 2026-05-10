@@ -19,6 +19,7 @@ create table if not exists public.user_profiles (
   credits_reset_date timestamptz not null default (now() + interval '30 days'),
   tabular_model text not null default 'gemini-3-flash-preview',
   openai_provider_settings jsonb not null default '{"provider":"openai","azureEndpoint":"","azureDeployment":""}'::jsonb,
+  locale text not null default 'en',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -26,6 +27,24 @@ create table if not exists public.user_profiles (
 alter table public.user_profiles
   add column if not exists openai_provider_settings jsonb
   not null default '{"provider":"openai","azureEndpoint":"","azureDeployment":""}'::jsonb;
+
+alter table public.user_profiles
+  add column if not exists locale text not null default 'en';
+
+do $$
+begin
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'user_profiles_locale_check'
+       and conrelid = 'public.user_profiles'::regclass
+  ) then
+    alter table public.user_profiles
+      add constraint user_profiles_locale_check
+      check (locale in ('en','pt','es','fr','de'));
+  end if;
+end
+$$;
 
 create table if not exists public.user_managed_models (
   id uuid primary key default gen_random_uuid(),

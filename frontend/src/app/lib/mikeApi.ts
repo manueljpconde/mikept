@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "@/lib/supabase";
+import type { SupportedLocale } from "@/lib/i18n/types";
 import type {
     AssistantEvent,
     MikeChat,
@@ -105,6 +106,7 @@ export interface UserProfile {
     creditsRemaining: number;
     tier: string;
     tabularModel: string;
+    locale: SupportedLocale;
     apiKeyStatus: ApiKeyStatus;
     openAIProviderSettings?: OpenAIProviderSettings;
     managedModels?: ManagedModel[];
@@ -118,6 +120,7 @@ export async function updateUserProfile(payload: {
     displayName?: string | null;
     organisation?: string | null;
     tabularModel?: string;
+    locale?: SupportedLocale;
 }): Promise<UserProfile> {
     return apiRequest<UserProfile>("/user/profile", {
         method: "PATCH",

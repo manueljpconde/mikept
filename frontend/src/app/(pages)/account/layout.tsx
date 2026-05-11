@@ -4,16 +4,21 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useT } from "@/contexts/I18nContext";
 
 interface TabDef {
     id: string;
-    label: string;
+    labelKey: "settings.tabs.general" | "settings.tabs.modelsApiKeys";
     href: string;
 }
 
 const TABS: TabDef[] = [
-    { id: "general", label: "General", href: "/account" },
-    { id: "models", label: "Models & API Keys", href: "/account/models" },
+    { id: "general", labelKey: "settings.tabs.general", href: "/account" },
+    {
+        id: "models",
+        labelKey: "settings.tabs.modelsApiKeys",
+        href: "/account/models",
+    },
 ];
 
 export default function AccountLayout({
@@ -24,6 +29,7 @@ export default function AccountLayout({
     const router = useRouter();
     const pathname = usePathname();
     const { isAuthenticated, authLoading } = useAuth();
+    const { t } = useT();
 
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
@@ -47,14 +53,14 @@ export default function AccountLayout({
         <div className="flex h-full flex-col overflow-y-auto">
             <header className="mx-auto flex h-16 w-full max-w-5xl shrink-0 items-end px-6 pb-2 md:h-24 md:pb-4">
                 <h1 className="text-4xl font-medium font-eb-garamond">
-                    Settings
+                    {t("settings.title")}
                 </h1>
             </header>
 
             <main className="mx-auto w-full max-w-5xl flex-1 px-6 pb-10 pt-4 md:pt-6">
                 <div className="grid grid-cols-1 gap-y-6 md:grid-cols-[224px_minmax(0,1fr)] md:gap-x-10">
                     <nav
-                        aria-label="Settings"
+                        aria-label={t("settings.title")}
                         className="z-10 -ml-3 min-w-0 self-start md:sticky md:top-4"
                     >
                         <div className="-m-1 min-w-0 p-1">
@@ -83,7 +89,7 @@ export default function AccountLayout({
                                                             : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
                                                     }`}
                                                 >
-                                                    {tab.label}
+                                                    {t(tab.labelKey)}
                                                 </button>
                                             </li>
                                         );

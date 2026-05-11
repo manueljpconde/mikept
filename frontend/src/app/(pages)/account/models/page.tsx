@@ -32,19 +32,24 @@ import {
     modelGroupToProvider,
     providerLabel,
 } from "@/app/lib/modelAvailability";
+import { useT } from "@/contexts/I18nContext";
 
 const API_KEY_FIELDS = [
     {
         provider: "claude",
-        label: "Anthropic (Claude) API Key",
+        labelKey: "settings.models.public.anthropicApiKey",
         placeholder: "sk-ant-...",
     },
     {
         provider: "gemini",
-        label: "Google (Gemini) API Key",
+        labelKey: "settings.models.public.geminiApiKey",
         placeholder: "AI...",
     },
-    { provider: "openai", label: "OpenAI API Key", placeholder: "sk-..." },
+    {
+        provider: "openai",
+        labelKey: "settings.models.public.openaiApiKey",
+        placeholder: "sk-...",
+    },
 ] as const;
 
 export default function ModelsAndApiKeysPage() {
@@ -59,21 +64,21 @@ export default function ModelsAndApiKeysPage() {
     const [providerTab, setProviderTab] = useState<"public" | "managed">(
         "public",
     );
+    const { t } = useT();
 
     return (
         <div className="space-y-8">
             <section>
                 <h2 className="text-2xl font-medium font-serif mb-4">
-                    Model Preferences
+                    {t("settings.models.preferencesTitle")}
                 </h2>
                 <div className="space-y-4 max-w-md">
                     <div>
                         <label className="text-sm text-gray-600 block mb-2">
-                            Tabular review model
+                            {t("settings.models.tabularReviewModel")}
                         </label>
                         <p className="text-xs text-gray-400 mb-2">
-                            We recommend using a smaller model for tabular
-                            reviews to reduce token costs.
+                            {t("settings.models.tabularReviewModelHelp")}
                         </p>
                         <TabularModelDropdown
                             value={
@@ -91,11 +96,10 @@ export default function ModelsAndApiKeysPage() {
 
             <section className="py-2">
                 <h2 className="text-2xl font-medium font-serif mb-2">
-                    Model Providers
+                    {t("settings.models.providersTitle")}
                 </h2>
                 <p className="text-sm text-gray-500 mb-4 max-w-xl">
-                    Public models use known provider catalogs. Managed models
-                    are endpoints you configure yourself.
+                    {t("settings.models.providersHelp")}
                 </p>
                 <div className="mb-4 grid max-w-xl grid-cols-2 gap-2">
                     <button
@@ -103,14 +107,14 @@ export default function ModelsAndApiKeysPage() {
                         onClick={() => setProviderTab("public")}
                         className={`rounded-md border px-3 py-2 text-sm text-left ${providerTab === "public" ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"}`}
                     >
-                        Public Models
+                        {t("settings.models.publicModels")}
                     </button>
                     <button
                         type="button"
                         onClick={() => setProviderTab("managed")}
                         className={`rounded-md border px-3 py-2 text-sm text-left ${providerTab === "managed" ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"}`}
                     >
-                        Managed Models
+                        {t("settings.models.managedModels")}
                     </button>
                 </div>
 
@@ -119,7 +123,7 @@ export default function ModelsAndApiKeysPage() {
                         {API_KEY_FIELDS.map((field) => (
                             <ApiKeyField
                                 key={`${field.provider}:${profile?.apiKeys[field.provider].configured}:${profile?.apiKeys[field.provider].source}`}
-                                label={field.label}
+                                label={t(field.labelKey)}
                                 placeholder={field.placeholder}
                                 hasSavedKey={
                                     !!profile?.apiKeys[field.provider]
@@ -162,13 +166,14 @@ function ManagedModelsPanel({
     onDelete: (id: string) => Promise<boolean>;
 }) {
     const [editing, setEditing] = useState<ManagedModel | null>(null);
+    const { t } = useT();
 
     return (
         <div className="max-w-xl space-y-4">
             <div className="space-y-2">
                 {models.length === 0 ? (
                     <p className="rounded-md border border-gray-200 bg-white px-3 py-3 text-sm text-gray-600">
-                        No managed models configured yet.
+                        {t("settings.models.noManagedModels")}
                     </p>
                 ) : (
                     models.map((model) => (
@@ -183,8 +188,8 @@ function ManagedModelsPanel({
                                     </p>
                                     <p className="mt-1 text-xs text-gray-500">
                                         {model.provider === "foundry"
-                                            ? "Microsoft Foundry"
-                                            : "Local OpenAI-compatible"}{" "}
+                                            ? t("settings.models.providerFoundry")
+                                            : t("settings.models.providerLocal")}{" "}
                                         · {model.modelName}
                                     </p>
                                     <p className="mt-1 truncate text-xs text-gray-400">
@@ -197,7 +202,7 @@ function ManagedModelsPanel({
                                         variant="outline"
                                         onClick={() => setEditing(model)}
                                     >
-                                        Edit
+                                        {t("common.edit")}
                                     </Button>
                                     <Button
                                         type="button"
@@ -237,6 +242,7 @@ function ManagedModelForm({
     onSave: (payload: ManagedModelPayload) => Promise<boolean>;
     onCancel: () => void;
 }) {
+    const { t } = useT();
     const [provider, setProvider] = useState<ManagedModelProvider>(
         model?.provider ?? "foundry",
     );
@@ -283,13 +289,15 @@ function ManagedModelForm({
             supportsReasoning,
         });
         setIsSaving(false);
-        if (!ok) alert("Failed to save managed model.");
+        if (!ok) alert(t("settings.models.saveManagedModelFailed"));
     };
 
     return (
         <div className="rounded-md border border-gray-200 bg-white px-3 py-3">
             <p className="text-sm font-medium text-gray-900">
-                {model ? "Edit managed model" : "Add managed model"}
+                {model
+                    ? t("settings.models.editManagedModel")
+                    : t("settings.models.addManagedModel")}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
@@ -297,26 +305,26 @@ function ManagedModelForm({
                     onClick={() => handleProvider("foundry")}
                     className={`rounded-md border px-3 py-2 text-sm text-left ${provider === "foundry" ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 text-gray-700"}`}
                 >
-                    Microsoft Foundry
+                    {t("settings.models.providerFoundry")}
                 </button>
                 <button
                     type="button"
                     onClick={() => handleProvider("local_openai_compatible")}
                     className={`rounded-md border px-3 py-2 text-sm text-left ${provider === "local_openai_compatible" ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 text-gray-700"}`}
                 >
-                    Local
+                    {t("settings.models.providerLocalShort")}
                 </button>
             </div>
             <div className="mt-3 space-y-3">
                 <Input
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Display name"
+                    placeholder={t("settings.models.displayNamePlaceholder")}
                 />
                 <Input
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder="Base URL"
+                    placeholder={t("settings.models.baseUrlPlaceholder")}
                 />
                 <Input
                     value={modelName}
@@ -333,10 +341,10 @@ function ManagedModelForm({
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder={
                         model?.hasApiKey
-                            ? "Saved key hidden"
+                            ? t("settings.models.savedKeyHidden")
                             : provider === "foundry"
-                              ? "API key"
-                              : "Optional API key"
+                              ? t("settings.models.apiKeyPlaceholder")
+                              : t("settings.models.optionalApiKeyPlaceholder")
                     }
                 />
                 <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -345,7 +353,7 @@ function ManagedModelForm({
                         checked={enabled}
                         onChange={(e) => setEnabled(e.target.checked)}
                     />
-                    Enabled
+                    {t("settings.models.enabled")}
                 </label>
                 <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input
@@ -353,7 +361,7 @@ function ManagedModelForm({
                         checked={supportsTools}
                         onChange={(e) => setSupportsTools(e.target.checked)}
                     />
-                    Supports tools
+                    {t("settings.models.supportsTools")}
                 </label>
                 <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input
@@ -361,7 +369,7 @@ function ManagedModelForm({
                         checked={supportsReasoning}
                         onChange={(e) => setSupportsReasoning(e.target.checked)}
                     />
-                    Supports reasoning
+                    {t("settings.models.supportsReasoning")}
                 </label>
                 <div className="flex justify-end gap-2">
                     {model && (
@@ -370,7 +378,7 @@ function ManagedModelForm({
                             variant="outline"
                             onClick={onCancel}
                         >
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                     )}
                     <Button
@@ -384,7 +392,7 @@ function ManagedModelForm({
                         }
                         className="bg-black text-white hover:bg-gray-900"
                     >
-                        {isSaving ? "Saving..." : "Save"}
+                        {isSaving ? t("account.saving") : t("common.save")}
                     </Button>
                 </div>
             </div>
@@ -401,10 +409,11 @@ function TabularModelDropdown({
     onChange: (id: string) => void;
     apiKeys?: ApiKeyState;
 }) {
+    const { t } = useT();
     const [isOpen, setIsOpen] = useState(false);
     const options = modelOptions(apiKeys);
     const selected = options.find((m) => m.id === value);
-    const selectedLabel = selected?.label ?? "Select a model";
+    const selectedLabel = selected?.label ?? t("settings.models.selectModel");
     const selectedAvailable = apiKeys ? isModelAvailable(value, apiKeys) : true;
     const groups: ("Anthropic" | "Google" | "OpenAI" | "Managed")[] = [
         "Anthropic",
@@ -412,6 +421,12 @@ function TabularModelDropdown({
         "OpenAI",
         "Managed",
     ];
+    const groupLabel = (
+        group: "Anthropic" | "Google" | "OpenAI" | "Managed",
+    ) => {
+        if (group === "Managed") return t("settings.models.groupManaged");
+        return group;
+    };
 
     return (
         <DropdownMenu onOpenChange={setIsOpen}>
@@ -445,7 +460,7 @@ function TabularModelDropdown({
                         <div key={group}>
                             {gi > 0 && <DropdownMenuSeparator />}
                             <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-gray-400">
-                                {group}
+                                {groupLabel(group)}
                             </DropdownMenuLabel>
                             {items.map((m) => {
                                 const provider = modelGroupToProvider(m.group);
@@ -459,7 +474,15 @@ function TabularModelDropdown({
                                         onSelect={() => onChange(m.id)}
                                         title={
                                             !available
-                                                ? `Add a ${providerLabel(provider)} API key to use this model`
+                                                ? t(
+                                                      "settings.models.addProviderKeyToUseModel",
+                                                      {
+                                                          provider:
+                                                              providerLabel(
+                                                                  provider,
+                                                              ),
+                                                      },
+                                                  )
                                                 : undefined
                                         }
                                     >
@@ -498,6 +521,7 @@ function ApiKeyField({
     onSave: (value: string) => Promise<boolean>;
     onRemove: () => Promise<boolean>;
 }) {
+    const { t } = useT();
     const [value, setValue] = useState("");
     const [reveal, setReveal] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -512,7 +536,7 @@ function ApiKeyField({
             setSaved(true);
             setTimeout(() => setSaved(false), 2000);
         } else {
-            alert(`Failed to save ${label}.`);
+            alert(t("settings.models.saveApiKeyFailed", { label }));
         }
     };
 
@@ -520,7 +544,7 @@ function ApiKeyField({
         setIsSaving(true);
         const ok = await onRemove();
         setIsSaving(false);
-        if (!ok) alert(`Failed to remove ${label}.`);
+        if (!ok) alert(t("settings.models.removeApiKeyFailed", { label }));
     };
 
     return (
@@ -528,7 +552,7 @@ function ApiKeyField({
             <label className="text-sm text-gray-600 block mb-2">{label}</label>
             {hasSavedKey && (
                 <p className="text-xs text-gray-500 mb-2">
-                    A key is saved. Paste a new key to replace it.
+                    {t("settings.models.savedKeyReplaceHelp")}
                 </p>
             )}
             <div className="flex gap-2">
@@ -538,7 +562,9 @@ function ApiKeyField({
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         placeholder={
-                            hasSavedKey ? "Saved key hidden" : placeholder
+                            hasSavedKey
+                                ? t("settings.models.savedKeyHidden")
+                                : placeholder
                         }
                         className="pr-10"
                         autoComplete="off"
@@ -548,7 +574,11 @@ function ApiKeyField({
                         type="button"
                         onClick={() => setReveal((r) => !r)}
                         className="absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600"
-                        aria-label={reveal ? "Hide key" : "Show key"}
+                        aria-label={
+                            reveal
+                                ? t("settings.models.hideKey")
+                                : t("settings.models.showKey")
+                        }
                     >
                         {reveal ? (
                             <EyeOff className="h-4 w-4" />
@@ -563,14 +593,14 @@ function ApiKeyField({
                     className="min-w-[80px] transition-all bg-black hover:bg-gray-900 text-white"
                 >
                     {isSaving ? (
-                        "Saving..."
+                        t("account.saving")
                     ) : saved ? (
                         <>
                             <Check className="h-4 w-3" />
-                            Saved
+                            {t("account.saved")}
                         </>
                     ) : (
-                        "Save"
+                        t("common.save")
                     )}
                 </Button>
                 {hasSavedKey && (
@@ -580,7 +610,7 @@ function ApiKeyField({
                         onClick={handleRemove}
                         disabled={isSaving}
                     >
-                        Remove
+                        {t("common.remove")}
                     </Button>
                 )}
             </div>

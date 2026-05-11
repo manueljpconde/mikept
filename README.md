@@ -1,6 +1,6 @@
-# Mike
+# MikeEU
 
-Open-source release containing the Mike frontend and backend.
+Open-source release containing the Mike frontend and backend for EU Lawyers
 
 ## Contents
 

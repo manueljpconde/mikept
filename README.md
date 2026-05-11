@@ -13,8 +13,8 @@ Open-source release containing the Mike frontend and backend.
 For the simplest local self-hosted run, use Docker:
 
 ```bash
-cp .env.docker.example .env.docker
-docker compose --env-file .env.docker up --build
+cp .env.docker.example .env
+docker compose up --build
 ```
 
 Open `http://localhost:3000`.
@@ -22,7 +22,7 @@ Open `http://localhost:3000`.
 This starts the frontend, backend, local Supabase-compatible Auth/PostgREST/Postgres services, MinIO storage, schema setup, and a storage bucket. To reset the local instance:
 
 ```bash
-docker compose --env-file .env.docker down -v
+docker compose down -v
 ```
 
 Managed model support is optional in Docker. The stack does not install or run
@@ -43,7 +43,7 @@ Linux Docker as well as Docker Desktop.
 
 The older server-configured local provider is still available as an optional
 default. To show the `Local model` provider in the UI from environment config,
-edit `.env.docker` and point these values at any OpenAI-compatible `/v1`
+edit `.env` and point these values at any OpenAI-compatible `/v1`
 endpoint you self-host:
 
 ```env

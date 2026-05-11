@@ -25,9 +25,19 @@ This starts the frontend, backend, local Supabase-compatible Auth/PostgREST/Post
 docker compose down -v
 ```
 
-Managed model support is optional in Docker. The stack does not install or run
-a model server. After signup, open `Settings -> Models & API Keys -> Managed
-Models` to add Microsoft Foundry or any local OpenAI-compatible model.
+Model access is configured after signup in `Settings -> Models & API Keys`.
+Mike supports three common setups:
+
+- Public cloud providers: add Anthropic, Google Gemini, or OpenAI API keys under
+  `Public Models`.
+- Enterprise managed endpoints: add Microsoft Foundry / Azure OpenAI, or any
+  other OpenAI-compatible managed endpoint, under `Managed Models`.
+- Local/self-hosted models: add LM Studio, Ollama, or another
+  OpenAI-compatible `/v1` runtime under `Managed Models`.
+
+The Docker stack does not install or run a model server by default. You can boot
+Mike first, create an account, and then connect whichever model provider your
+firm wants to use.
 
 For a model server running on the host machine while Mike runs in Docker, use a
 backend-reachable URL such as:
@@ -42,9 +52,11 @@ The Docker compose file maps `host.docker.internal` to the host gateway for
 Linux Docker as well as Docker Desktop.
 
 The older server-configured local provider is still available as an optional
-default. To show the `Local model` provider in the UI from environment config,
-edit `.env` and point these values at any OpenAI-compatible `/v1`
-endpoint you self-host:
+default. Most users should prefer `Managed Models` in the UI; use this env-based
+mode only when you want the deployment itself to expose one fixed local model to
+all users. To show the `Local model` provider in the UI from environment config,
+edit `.env` and point these values at any OpenAI-compatible `/v1` endpoint you
+self-host:
 
 ```env
 ENABLE_LOCAL_LLM=true
